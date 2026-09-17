@@ -11,7 +11,8 @@ you close the launcher window.
 
 Options go after the script name, for example `start.bat --port 5000` or `start.bat --no-open`.
 
-Deleting the `.runtime` folder forces a clean reinstall.
+Deleting the `.runtime` folder forces a clean reinstall. Your settings, such as which game install
+you chose, are kept separately in the `data` folder, so a reinstall doesn't lose them.
 
 ## Status
 

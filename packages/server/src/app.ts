@@ -19,7 +19,7 @@ export interface AppOptions {
   token: string;
   /** The built editor to serve at /. Left out in dev, where Vite serves the page. */
   staticDir?: string;
-  /** Where settings are kept. Defaults to %LOCALAPPDATA%\HBMEditor. */
+  /** Where settings are kept. Defaults to the `data` folder in the editor's directory. */
   dataDir?: string;
   /** A game install to switch to at start-up, as given to --game. */
   game?: string;

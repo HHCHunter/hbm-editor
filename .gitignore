@@ -4,8 +4,11 @@ coverage/
 *.log
 .vite/
 
-# start.bat / dev.bat: portable Node, corepack cache and install/build stamps
+# start.bat: portable Node, corepack cache and install/build stamps
 .runtime/
+
+# the editor's settings, such as the chosen game install
+data/
 
 # anything derived from game files must never be committed
 .cache/

@@ -1,15 +1,18 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface StoredConfig {
   gameRoot: string | null;
 }
 
-/** Where the editor keeps its settings: %LOCALAPPDATA%\HBMEditor on Windows. */
+/**
+ * Where the editor keeps its settings: the `data` folder in the editor's own directory, beside
+ * start.bat. Not .runtime, which is deleted to force a clean reinstall.
+ */
 export function defaultDataDir(): string {
-  const base = process.env.LOCALAPPDATA ?? path.join(homedir(), '.local', 'share');
-  return path.join(base, 'HBMEditor');
+  const editorRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+  return path.join(editorRoot, 'data');
 }
 
 export class ConfigStore {
