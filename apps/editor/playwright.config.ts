@@ -9,6 +9,9 @@ export default defineConfig({
   // *.e2e.ts, so Vitest's *.test / *.spec pattern never picks these up.
   testMatch: '*.e2e.ts',
   timeout: 60_000,
+  // The tests share one server, whose chosen game carries from test to test.
+  workers: 1,
+  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.002 } },
   reporter: 'list',
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
