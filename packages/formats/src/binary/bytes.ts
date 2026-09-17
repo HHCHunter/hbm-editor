@@ -30,6 +30,13 @@ export function i32At(data: Uint8Array, offset: number): number {
   return u32At(data, offset) | 0;
 }
 
+const scratch = new DataView(new ArrayBuffer(4));
+
+export function f32At(data: Uint8Array, offset: number): number {
+  scratch.setUint32(0, u32At(data, offset), true);
+  return scratch.getFloat32(0, true);
+}
+
 /** The bytes of a NUL-terminated string starting at `offset`, without the NUL. */
 export function cstringAt(data: Uint8Array, offset: number): Uint8Array {
   check(data, offset, 1);

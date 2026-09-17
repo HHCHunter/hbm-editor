@@ -4,7 +4,7 @@
 export { FormatError } from './binary/FormatError';
 export { ByteReader } from './binary/ByteReader';
 export { ByteWriter } from './binary/ByteWriter';
-export { cstringAt, hex, i32At, u16At, u32At, u8At } from './binary/bytes';
+export { cstringAt, f32At, hex, i32At, u16At, u32At, u8At } from './binary/bytes';
 export { asciiLower, decodeText, latin1Bytes } from './binary/text';
 export { crc32 } from './binary/crc32';
 export { bytesSource, type Codec, type RandomAccess } from './io';
@@ -65,4 +65,50 @@ export {
   type GeomFamily,
 } from './classreg/classRegistry';
 
-export { readGeomCount } from './gms/gmsImage';
+export { readGeomCount, readGms, type GmsGeom, type GmsImage } from './gms/gms';
+export { computePlacements, type Placements } from './gms/placements';
+export { bufString } from './buf/buf';
+
+export {
+  TEX_FLAG_CUBEMAP,
+  TEX_FLAG_ID_LIST,
+  TEX_SLOTS,
+  readTex,
+  texLevelSize,
+  type TexFile,
+  type TexFormat,
+  type TexLevel,
+  type TexRecord,
+} from './tex/tex';
+export { decodeTexLevel, firstLevelWithData, type DecodedImage } from './tex/decode';
+
+export {
+  PRIM_SUBTYPE_WEIGHTED,
+  PRIM_TYPE,
+  PrmFile,
+  strideCandidates,
+  type PrimHeader,
+  type PrimMesh,
+  type PrimObject,
+  type PrimObjectHeader,
+  type PrimSubMesh,
+  type PrmDescriptor,
+} from './prm/prm';
+export {
+  VERTEX_LAYOUTS,
+  decodeVertices,
+  layoutForMaterialClass,
+  unpackNormal,
+  type DecodedVertices,
+  type VertexLayout,
+} from './prm/vertices';
+
+export { MAT_FLOAT, MAT_INT, MAT_LIST, MAT_STRING, MatFile, type MatEntry, type MatMaterial, type MatNode } from './mat/mat';
+export {
+  bindProperties,
+  colorProperty,
+  renderState,
+  textureStages,
+  type MatRenderState,
+  type MatTextureStage,
+} from './mat/materialProps';
