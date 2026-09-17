@@ -21,7 +21,8 @@ export interface Placements {
 
 /**
  * World transforms for every geom (gms.md, "The placement transform"). The stored 3×3 has its rows
- * in reverse order, so the local rotation is J·A with J the row exchange; the translation is
+ * in reverse order and is the transpose of the rotation, so the local rotation is (J·A)ᵀ with J the
+ * row exchange; the translation is
  * parent-local; world = parent ∘ local, composed down the pre-order tree.
  */
 export function computePlacements(gms: GmsImage): Placements {
@@ -40,7 +41,10 @@ export function computePlacements(gms: GmsImage): Placements {
       t = [0, 0, 0];
     } else {
       const a = (i: number) => f32(g.rotationOffset + 4 * i);
-      r = [a(6), a(7), a(8), a(3), a(4), a(5), a(0), a(1), a(2)];
+      // (J·A)ᵀ: the stored rows reversed, then transposed. gms.md gives J·A, checked by rendering
+      // yaw only; objects tilted about X (M03's vaulted lobby ceiling, the auditorium's covered
+      // seats) only assemble with the transpose, and it still agrees for yaw within the scene.
+      r = [a(6), a(3), a(0), a(7), a(4), a(1), a(8), a(5), a(2)];
       // A few records store an all-zero matrix; identity keeps their children in place.
       if (Math.abs(det3(r)) < 0.5) r = IDENTITY;
       t = [f32(g.translationOffset), f32(g.translationOffset + 4), f32(g.translationOffset + 8)];

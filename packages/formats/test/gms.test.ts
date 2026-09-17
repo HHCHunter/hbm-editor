@@ -3,8 +3,8 @@ import { bufString, computePlacements, readGms } from '../src';
 import { makeGmsImage } from './fixtures/assetBuilders';
 import { text } from './fixtures/builders';
 
-/** Rows reversed: what the file stores for a given rotation. */
-const stored = (r: number[]) => [...r.slice(6, 9), ...r.slice(3, 6), ...r.slice(0, 3)];
+/** What the file stores for a rotation: its transpose, with the rows reversed. */
+const stored = (r: number[]) => [r[2]!, r[5]!, r[8]!, r[1]!, r[4]!, r[7]!, r[0]!, r[3]!, r[6]!];
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 /** 90° about Y, as a row-major 3×3 acting on column vectors. */
 const YAW_90 = [0, 0, 1, 0, 1, 0, -1, 0, 0];
@@ -44,6 +44,14 @@ describe('computePlacements', () => {
     // The child's local (1, 0, 0) turns with its parent: world (10, 0, -1).
     expect(Array.from(transforms.subarray(12, 21))).toEqual(YAW_90);
     expect(Array.from(transforms.subarray(21, 24))).toEqual([10, 0, -1]);
+  });
+
+  it('turns a stored tilt the way the level needs it', () => {
+    // M03_main's Si03G_CeilingA_Big_01 stores these rows. Its vault curves up along local +Z and
+    // hangs at y = 30, so local +Z has to end up as world +Y for the ceiling to be overhead.
+    const gms = readGms(makeGmsImage([{ ascend: 0, hasChildren: false, stored: [0, 1, 0, 0, 0, -1, 1, 0, 0], translation: [0, 0, 0] }]));
+    const r = Array.from(computePlacements(gms).transforms.subarray(0, 9));
+    expect([r[2], r[5], r[8]]).toEqual([0, 1, 0]);
   });
 
   it('treats an all-zero stored matrix as identity', () => {
