@@ -60,7 +60,7 @@ export class SceneRenderer {
   private frozenNodes: Uint8Array = new Uint8Array(0);
 
   private materials = new Map<string, THREE.Material>();
-  private textures = new Map<number, THREE.Texture | null>();
+  private textures = new Map<number, Promise<THREE.Texture | null>>();
   private textureInfo: Promise<Map<number, TextureDTO>> | null = null;
   private grid: THREE.GridHelper | null = null;
   private markers: THREE.Points | null = null;
@@ -208,7 +208,7 @@ export class SceneRenderer {
     this.clearOverlays();
     for (const material of this.materials.values()) material.dispose();
     this.materials.clear();
-    for (const texture of this.textures.values()) texture?.dispose();
+    for (const pending of this.textures.values()) void pending.then((texture) => texture?.dispose());
     this.textures.clear();
     if (this.grid) {
       this.scene.remove(this.grid);
@@ -312,11 +312,19 @@ export class SceneRenderer {
     this.buildHighlights();
   }
 
-  private async texture(id: number): Promise<THREE.Texture | null> {
-    if (this.textures.has(id)) return this.textures.get(id) ?? null;
+  /** One request per texture id, shared by every material that uses it. */
+  private texture(id: number): Promise<THREE.Texture | null> {
+    let pending = this.textures.get(id);
+    if (!pending) {
+      pending = this.loadTexture(id);
+      this.textures.set(id, pending);
+    }
+    return pending;
+  }
+
+  private async loadTexture(id: number): Promise<THREE.Texture | null> {
     const scene = this.loaded;
     if (!scene) return null;
-    this.textures.set(id, null);
 
     this.textureInfo ??= listTextures(scene.id).then((list) => new Map(list.map((t) => [t.id, t])));
     try {
@@ -344,7 +352,6 @@ export class SceneRenderer {
         texture.dispose();
         return null;
       }
-      this.textures.set(id, texture);
       return texture;
     } catch {
       return null;
