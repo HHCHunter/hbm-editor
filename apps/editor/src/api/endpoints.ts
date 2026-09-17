@@ -5,6 +5,7 @@ import type {
   LocLookupDTO,
   NodeDetailDTO,
   SceneGraphDTO,
+  SceneAnimationsDTO,
   SceneListItemDTO,
   SceneScriptsDTO,
   SkeletonDTO,
@@ -48,6 +49,8 @@ export const textureUrl = (scene: string, id: number, level?: number) => sceneUr
 export const textureRgbaUrl = (scene: string, id: number, level: number) => sceneUrl('texture', scene, { id, level, as: 'rgba' });
 
 export const getSkeleton = (scene: string, root: number) => getJson<SkeletonDTO>(sceneUrl('skeleton', scene, { root }));
+
+export const getSceneAnimations = (scene: string) => getJson<SceneAnimationsDTO>(sceneUrl('animations', scene));
 
 export const getSceneScripts = (scene: string) => getJson<SceneScriptsDTO>(sceneUrl('scripts', scene));
 

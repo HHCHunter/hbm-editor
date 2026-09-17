@@ -218,6 +218,36 @@ export interface SurfaceDTO {
   hiddenReason: HiddenReasonDTO | null;
 }
 
+// ---------------------------------------------------------------- animations
+
+export interface AnimationClipDTO {
+  index: number;
+  name: string;
+  frames: number;
+  fps: number;
+  /** Clip flags: 0x2 bone quaternions, 0x4 human state, 0x10 explicit bone list, 0x20 pose. */
+  mask: number;
+  states: number;
+  blendFrames: number;
+  /** Ids into `boneNames`; 0x38 is the root track. */
+  boneIds: number[];
+}
+
+export interface AnimationCollectionDTO {
+  /** "anmcol:animationdatabase#<Name>". */
+  name: string;
+  /** Scene objects whose animation collection property names it. */
+  users: number[];
+}
+
+export interface SceneAnimationsDTO {
+  collections: AnimationCollectionDTO[];
+  boneNames: string[];
+  poseNames: string[];
+  clips: AnimationClipDTO[];
+  problems: string[];
+}
+
 // ---------------------------------------------------------------- mission scripts
 
 export interface ScriptCreatorDTO {

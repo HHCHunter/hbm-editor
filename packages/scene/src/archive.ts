@@ -7,8 +7,10 @@ import {
   findMember,
   readGms,
   readMember,
+  readAnm,
   readPrpTree,
   readTex,
+  type AnmFile,
   readZipDirectory,
   unpackChunk,
   type Codec,
@@ -100,6 +102,11 @@ export class SceneArchive {
 
   tex(): Promise<TexFile> {
     return this.once('tex', async () => readTex(await this.memberBytes('tex')));
+  }
+
+  /** The scene's animation clips and collections, or null when it has no .ANM member. */
+  anm(): Promise<AnmFile | null> {
+    return this.once('anm', async () => (this.member('anm') ? readAnm(await this.memberBytes('anm')) : null));
   }
 
   /** The scene's localisation database; Loader_Sequence scenes ship none. */

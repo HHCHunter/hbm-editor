@@ -99,6 +99,19 @@ export { decodeTexLevel, firstLevelWithData, type DecodedImage } from './tex/dec
 
 export { composeTransforms, readSkeleton, type Bone, type Skeleton } from './prm/skeleton';
 export {
+  ANM_CHUNK,
+  CLIP_BONE_LIST,
+  CLIP_FRAME_SNAP,
+  CLIP_HUMAN_STATE,
+  CLIP_POSE,
+  CLIP_QUATS,
+  ROOT_TRACK_BONE,
+  readAnm,
+  type AnmChunk,
+  type AnmClip,
+  type AnmFile,
+} from './anm/anm';
+export {
   PRIM_SUBTYPE_RIGID,
   PRIM_SUBTYPE_WEIGHTED,
   PRIM_TYPE,

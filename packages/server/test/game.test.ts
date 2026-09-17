@@ -182,6 +182,12 @@ describe('localisation', () => {
   });
 });
 
+describe('animations', () => {
+  it('answers 404 for a scene without an .ANM member', async () => {
+    expect((await get(scene('animations'))).statusCode).toBe(404);
+  });
+});
+
 describe('mission scripts', () => {
   it('reports a scene without a script module or DLL as empty', async () => {
     expect(await json(scene('scripts'))).toEqual({ module: null, dll: null, creators: [], users: [] });

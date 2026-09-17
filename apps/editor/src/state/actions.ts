@@ -262,6 +262,8 @@ export function runMenuCommand(name: string): void {
       return setTab('localisation');
     case 'Script Browser':
       return setTab('scripts');
+    case 'Animation Browser':
+      return setTab('animations');
     default:
       setStatus(MESSAGES[name] ?? `${name.replace(/…$/, '')} isn't available yet`);
   }

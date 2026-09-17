@@ -42,6 +42,7 @@ export function useShortcuts(): void {
       else if (ctrl && key === '2') setTab('textures');
       else if (ctrl && key === '3') setTab('localisation');
       else if (ctrl && key === '4') setTab('scripts');
+      else if (ctrl && key === '5') setTab('animations');
       else if (ctrl) return;
       else if (key === 'w') toggleViewFlag('W');
       else if (key === 'l') toggleViewFlag('Li');

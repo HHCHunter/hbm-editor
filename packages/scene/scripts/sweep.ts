@@ -3,7 +3,9 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import {
+  CLIP_HUMAN_STATE,
   PRIM_SUBTYPE_RIGID,
+  ROOT_TRACK_BONE,
   PeImage,
   VERTEX_LAYOUTS,
   composeTransforms,
@@ -63,6 +65,7 @@ let placedRoots = 0;
 let parts = 0;
 let triangles = 0;
 let unshaded = 0;
+const animations = { files: 0, clips: 0, humanState: 0 };
 const skin = { skeletons: 0, composed: 0, notComposed: 0, badPalettes: 0, vertices: 0, outsidePalette: 0, distance: 0 };
 
 for (const relative of zips) {
@@ -86,6 +89,22 @@ for (const relative of zips) {
 
     nodes += graph.nodes.length;
     for (const n of graph.nodes) kinds[n.kind]++;
+
+    const anm = await archive.anm();
+    if (anm) {
+      animations.files++;
+      animations.clips += anm.clips.length;
+      animations.humanState += anm.clips.filter((c) => c.mask & CLIP_HUMAN_STATE).length;
+      for (const p of anm.problems) failures.push(`${scene} animations: ${p}`);
+      if (anm.clips.some((c) => c.boneIds.some((id) => id !== ROOT_TRACK_BONE && id >= anm.boneNames.length))) {
+        failures.push(`${scene} animations: a clip names a bone past the bone name table`);
+      }
+      if (scene === PACKED_SCENE) {
+        const first = anm.clips[0];
+        console.log(`${scene}: ${anm.clips.length} clips, ${anm.boneNames.length} bones, ${anm.poseNames.length} poses; clip 0 ${first?.name} (${first?.frames} frames)`);
+        if (anm.clips.length !== 905 || anm.boneNames.length !== 223 || anm.poseNames.length !== 66) failures.push(`${scene}: animation counts differ from anm.md`);
+      }
+    }
 
     // Every geom and controller record binds to its class's property chain from the executable.
     if (schemas && prp.tree.nodes.length - 1 === gms.geoms.length) {
@@ -208,6 +227,7 @@ console.log(
   `skeletons       ${skin.skeletons} for placed skinned roots; bind matrices compose on ${skin.composed} bones (${skin.notComposed} don't); ` +
     `${skin.vertices} skinned vertices, mean ${(skin.distance / Math.max(1, skin.vertices)).toFixed(1)} from their main bone`,
 );
+console.log(`animations      ${animations.files} files, ${animations.clips} clips (${animations.humanState} human-state)`);
 if (skin.notComposed) failures.push(`${skin.notComposed} bones' bind matrices don't compose with their parents'`);
 if (skin.badPalettes) failures.push(`${skin.badPalettes} bone palettes name bones the skeleton doesn't have`);
 if (skin.outsidePalette) failures.push(`${skin.outsidePalette} skinned vertices point outside their palette`);

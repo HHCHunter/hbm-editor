@@ -9,6 +9,7 @@ import { PropertyGrid } from './components/properties/PropertyGrid';
 import { ToolRail } from './components/rail/ToolRail';
 import { Viewport } from './components/viewport/Viewport';
 import { useShortcuts } from './hooks/useShortcuts';
+import { AnimationBrowser } from './panels/AnimationBrowser';
 import { GamePickerDialog } from './panels/GamePickerDialog';
 import { LocalisationBrowser } from './panels/LocalisationBrowser';
 import { SceneOpenDialog } from './panels/SceneOpenDialog';
@@ -41,6 +42,7 @@ export function App() {
           {tab === 'textures' && <TextureBrowser />}
           {tab === 'localisation' && <LocalisationBrowser />}
           {tab === 'scripts' && <ScriptBrowser />}
+          {tab === 'animations' && <AnimationBrowser />}
         </div>
         <div className="right-col">
           <SceneTree />

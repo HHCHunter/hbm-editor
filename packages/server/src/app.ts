@@ -6,6 +6,7 @@ import { API_VERSION, type ErrorDTO, type HealthDTO, type SessionDTO } from '@hb
 import { ConfigStore, defaultDataDir } from './config/configStore';
 import { GameService } from './game/GameService';
 import { HttpError } from './http/HttpError';
+import { registerAnimationRoutes } from './routes/animationRoutes';
 import { registerGameRoutes } from './routes/gameRoutes';
 import { registerLocRoutes } from './routes/locRoutes';
 import { registerSceneRoutes } from './routes/sceneRoutes';
@@ -63,6 +64,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   registerSceneRoutes(app, game);
   registerLocRoutes(app, game);
   registerScriptRoutes(app, game);
+  registerAnimationRoutes(app, game);
 
   if (opts.staticDir && existsSync(opts.staticDir)) {
     await app.register(fastifyStatic, { root: opts.staticDir });
