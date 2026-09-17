@@ -61,4 +61,3 @@ The layout:
 | `packages/protocol` | Types shared by server and editor |
 | `packages/formats` | Game file readers and writers (from M1) |
 | `packages/scene` | Joins the formats into a scene (from M1) |
-| `design/` | The original Claude Design artboard the interface is ported from |
