@@ -86,13 +86,15 @@ export interface MeshLoad {
 
 /**
  * Fetch every model root the scene places, a batch at a time. `onBatch` receives each batch's
- * roots once their parts are stored.
+ * roots once their parts are stored; `onBatchError` receives a batch that couldn't be read, whose
+ * roots stay without parts. Both report how many roots are done, read or not, so progress always
+ * reaches the total and one bad batch doesn't stop the others.
  */
 export function loadSceneMeshes(
   sceneId: string,
   roots: readonly number[],
-  onBatch: (roots: number[], loaded: number) => void,
-  onError: (err: unknown) => void,
+  onBatch: (roots: number[], done: number) => void,
+  onBatchError: (roots: number[], err: unknown, done: number) => void,
 ): MeshLoad {
   const byRoot = new Map<number, MeshPartData[]>();
   current = { sceneId, byRoot };
@@ -101,22 +103,27 @@ export function loadSceneMeshes(
   const batches: number[][] = [];
   for (let i = 0; i < roots.length; i += BATCH) batches.push(roots.slice(i, i + BATCH));
   let next = 0;
-  let loaded = 0;
+  let done = 0;
 
   const worker = async () => {
     while (next < batches.length && !abort.signal.aborted) {
       const batch = batches[next++]!;
-      const pack = await getMeshPack(sceneId, batch, abort.signal);
+      let failure: { err: unknown } | null = null;
+      try {
+        const pack = await getMeshPack(sceneId, batch, abort.signal);
+        const parts = new Map<number, MeshPartData[]>(batch.map((root) => [root, []]));
+        for (const part of pack.parts) parts.get(part.root)?.push(partData(part, pack.body));
+        if (!abort.signal.aborted) for (const [root, list] of parts) byRoot.set(root, list);
+      } catch (err) {
+        failure = { err };
+      }
       if (abort.signal.aborted) return;
-      for (const root of batch) byRoot.set(root, []);
-      for (const part of pack.parts) byRoot.get(part.root)?.push(partData(part, pack.body));
-      loaded += batch.length;
-      onBatch(batch, loaded);
+      done += batch.length;
+      if (failure) onBatchError(batch, failure.err, done);
+      else onBatch(batch, done);
     }
   };
-  Promise.all(Array.from({ length: CONCURRENCY }, worker)).catch((err: unknown) => {
-    if (!abort.signal.aborted) onError(err);
-  });
+  for (let i = 0; i < CONCURRENCY; i++) void worker();
 
   return { cancel: () => abort.abort() };
 }

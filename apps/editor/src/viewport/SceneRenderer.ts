@@ -11,9 +11,10 @@ import { keepSkeletonsFor, skeletonFor } from './skeletonStore';
 export interface RendererCallbacks {
   onCamera: (cam: CameraState) => void;
   onPick: (index: number | null, additive: boolean) => void;
-  onMeshProgress: (loaded: number, total: number) => void;
+  onMeshProgress: (loaded: number, total: number, failed: number) => void;
   onStats: (text: string) => void;
-  onError: (message: string) => void;
+  /** Something the user should know about: a load that failed, or a limit that was reached. */
+  onMessage: (message: string) => void;
 }
 
 /** Largest texture edge uploaded; bigger textures use a smaller mip level. */
@@ -65,6 +66,8 @@ export class SceneRenderer {
   private materials = new Map<string, THREE.Material>();
   private textures = new Map<number, Promise<THREE.Texture | null>>();
   private textureInfo: Promise<Map<number, TextureDTO>> | null = null;
+  /** Whether this scene has already reported a texture it couldn't load. */
+  private textureFailureReported = false;
   private grid: THREE.GridHelper | null = null;
   private markers: THREE.Points | null = null;
 
@@ -133,6 +136,7 @@ export class SceneRenderer {
     this.clearSkeletons();
     this.loaded = scene;
     this.textureInfo = null;
+    this.textureFailureReported = false;
     if (!scene) return;
     keepSkeletonsFor(scene.id);
 
@@ -146,17 +150,30 @@ export class SceneRenderer {
     this.buildGrid(scene);
 
     const roots = [...placed.keys()];
-    this.callbacks.onMeshProgress(0, roots.length);
+    let failed = 0;
+    let firstError = '';
+    const progress = (done: number) => {
+      this.callbacks.onMeshProgress(done, roots.length, failed);
+      if (done === roots.length && failed) {
+        this.callbacks.onMessage(`${failed} of ${roots.length} models couldn't be read: ${firstError}`);
+      }
+    };
+    this.callbacks.onMeshProgress(0, roots.length, 0);
     this.load = loadSceneMeshes(
       scene.id,
       roots,
-      (batch, loaded) => {
+      (batch, done) => {
         if (this.loaded !== scene) return;
         for (const root of batch) this.addRoot(scene, root, placed.get(root) ?? []);
-        this.callbacks.onMeshProgress(loaded, roots.length);
+        progress(done);
         this.needsRender = true;
       },
-      (err) => this.callbacks.onError(`Couldn't load models: ${err instanceof Error ? err.message : String(err)}`),
+      (batch, err, done) => {
+        if (this.loaded !== scene) return;
+        failed += batch.length;
+        firstError ||= err instanceof Error ? err.message : String(err);
+        progress(done);
+      },
     );
   }
 
@@ -330,8 +347,15 @@ export class SceneRenderer {
     const scene = this.loaded;
     if (!scene) return null;
 
-    this.textureInfo ??= listTextures(scene.id).then((list) => new Map(list.map((t) => [t.id, t])));
     try {
+      if (!this.textureInfo) {
+        const info = listTextures(scene.id).then((list) => new Map(list.map((t) => [t.id, t])));
+        this.textureInfo = info;
+        // A failed list isn't kept, so the next texture asks again.
+        info.catch(() => {
+          if (this.textureInfo === info) this.textureInfo = null;
+        });
+      }
       const info = (await this.textureInfo).get(id);
       if (!info) return null;
       let level = info.levels.findIndex((l) => l.size > 0 && Math.max(l.width, l.height) <= MAX_TEXTURE_EDGE);
@@ -340,7 +364,8 @@ export class SceneRenderer {
       if (!size) return null;
 
       const res = await fetch(textureRgbaUrl(scene.id, id, level));
-      if (!res.ok || this.loaded !== scene) return null;
+      if (this.loaded !== scene) return null;
+      if (!res.ok) throw new Error(`texture ${id} failed (${res.status})`);
       const texture = new THREE.DataTexture(new Uint8Array(await res.arrayBuffer()), size.width, size.height);
       // The rows are stored top first, which is where Direct3D texture coordinates start.
       texture.flipY = false;
@@ -357,7 +382,14 @@ export class SceneRenderer {
         return null;
       }
       return texture;
-    } catch {
+    } catch (err) {
+      if (this.loaded !== scene) return null;
+      // Forget the failure so a later material rebuild asks again.
+      this.textures.delete(id);
+      if (!this.textureFailureReported) {
+        this.textureFailureReported = true;
+        this.callbacks.onMessage(`Some textures couldn't be loaded, so their models are drawn untextured: ${err instanceof Error ? err.message : String(err)}`);
+      }
       return null;
     }
   }
@@ -419,6 +451,9 @@ export class SceneRenderer {
     const state = this.state;
     if (!scene || !state) return;
     const m = new THREE.Matrix4();
+    if (state.sel.length > MAX_HIGHLIGHTS) {
+      this.callbacks.onMessage(`Outlining the first ${MAX_HIGHLIGHTS} of ${state.sel.length} selected objects`);
+    }
     for (const index of state.sel.slice(0, MAX_HIGHLIGHTS)) {
       nodeMatrix(scene.transforms, index, m);
       const entries = this.instancesByNode.get(index);
@@ -474,7 +509,11 @@ export class SceneRenderer {
       const node = scene.graph.nodes[index];
       return !!node?.meshRoot && (scene.roots[node.meshRoot]?.bones ?? 0) > 0 && !this.hiddenNodes[index];
     };
-    const wanted = (state.view.Bn ? scene.graph.nodes.map((n) => n.index) : state.sel).filter(skinned).slice(0, MAX_SKELETONS);
+    const skinnedNodes = (state.view.Bn ? scene.graph.nodes.map((n) => n.index) : state.sel).filter(skinned);
+    if (skinnedNodes.length > MAX_SKELETONS) {
+      this.callbacks.onMessage(`Drawing the skeletons of the first ${MAX_SKELETONS} of ${skinnedNodes.length} characters`);
+    }
+    const wanted = skinnedNodes.slice(0, MAX_SKELETONS);
 
     for (const index of wanted) {
       const root = scene.graph.nodes[index]!.meshRoot;

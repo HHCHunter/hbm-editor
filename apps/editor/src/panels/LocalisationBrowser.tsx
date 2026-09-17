@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { LocEntryDTO } from '@hbm/protocol';
-import { locChildren, locLookup, locSearch } from '../api/endpoints';
+import { LOC_SEARCH_LIMIT, locChildren, locLookup, locSearch } from '../api/endpoints';
 import { useAsync } from '../hooks/useAsync';
 import { useEditor } from '../state/store';
 
@@ -99,6 +99,16 @@ export function LocalisationBrowser() {
       <div className="loc-table-wrap bevel-in">
         {entries.status === 'loading' && <div className="list-note">Reading…</div>}
         {entries.status === 'error' && <div className="list-note error">{entries.error}</div>}
+        {entries.value && search && (
+          <div className="list-note">
+            {entries.value.length >= LOC_SEARCH_LIMIT
+              ? `Showing the first ${LOC_SEARCH_LIMIT} matches. Search for something more specific to see the rest.`
+              : entries.value.length
+                ? `${entries.value.length} match(es)`
+                : `Nothing matches “${search}”.`}
+          </div>
+        )}
+        {entries.value && !search && !entries.value.length && <div className="list-note">This folder is empty.</div>}
         {entries.value && (
           <table className="loc-table">
             <thead>

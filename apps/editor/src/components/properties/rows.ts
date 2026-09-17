@@ -69,6 +69,7 @@ export function buildPropRows(
   surfaces: Readonly<Record<number, SurfaceDTO>>,
   meshParts: readonly { materialSlot: number }[] | null,
   skeleton: SkeletonDTO | null = null,
+  detailError: string | null = null,
 ): PropRow[] {
   const rows: PropRow[] = [];
 
@@ -86,7 +87,12 @@ export function buildPropRows(
   rows.push({ kind: 'text', label: 'TypeId', value: hex(node.typeId) });
 
   if (!detail || detail.node.index !== node.index) {
-    rows.push({ kind: 'group', label: 'Loading…' });
+    if (detailError) {
+      rows.push({ kind: 'group', label: "Couldn't read this object" });
+      rows.push({ kind: 'text', label: 'Reason', value: detailError });
+    } else {
+      rows.push({ kind: 'group', label: 'Loading…' });
+    }
     return rows;
   }
 

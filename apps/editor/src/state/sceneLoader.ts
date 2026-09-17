@@ -79,6 +79,10 @@ export async function openScene(id: string): Promise<void> {
 /** Connect, then open the scene named in the URL or the last one used, or ask for the game. */
 export async function startUp(): Promise<void> {
   const { update } = useEditor.getState();
+  update((s) => {
+    s.server = 'connecting';
+    s.statusMsg = 'Connecting to the local server…';
+  });
   try {
     await connect();
     const config = await getConfig();

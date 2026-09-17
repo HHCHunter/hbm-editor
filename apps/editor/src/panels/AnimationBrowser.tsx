@@ -73,6 +73,9 @@ function ClipDetail({ clip, data }: { clip: AnimationClipDTO; data: SceneAnimati
   );
 }
 
+/** Users listed per collection; the rest are counted. */
+const USERS_SHOWN = 50;
+
 function Collections({ data }: { data: SceneAnimationsDTO }) {
   const nodes = useEditor((s) => s.scene?.graph.nodes);
   return (
@@ -84,12 +87,15 @@ function Collections({ data }: { data: SceneAnimationsDTO }) {
             <div className="list-group">
               {c.name.replace(/^anmcol:animationdatabase#/, '')} <span className="list-meta">{c.users.length} object(s)</span>
             </div>
-            {c.users.slice(0, 50).map((index) => (
+            {c.users.slice(0, USERS_SHOWN).map((index) => (
               <div key={index} className="list-item link" onClick={() => showNode(index)}>
                 {nodes?.[index] ? nodeLabel(nodes[index]!) : `node ${index}`}
                 <span className="list-meta">#{index}</span>
               </div>
             ))}
+            {c.users.length > USERS_SHOWN && (
+              <div className="list-item list-meta">and {c.users.length - USERS_SHOWN} more</div>
+            )}
           </div>
         ))}
       </div>

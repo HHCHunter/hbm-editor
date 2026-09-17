@@ -56,4 +56,7 @@ export const getSceneScripts = (scene: string) => getJson<SceneScriptsDTO>(scene
 
 export const locChildren = (scene: string, path: string) => getJson<LocEntryDTO[]>(sceneUrl('loc/children', scene, { path }));
 export const locLookup = (scene: string, path: string) => getJson<LocLookupDTO>(sceneUrl('loc/lookup', scene, { path }));
-export const locSearch = (scene: string, q: string) => getJson<LocEntryDTO[]>(sceneUrl('loc/search', scene, { q, limit: 200 }));
+/** At most this many search results come back. */
+export const LOC_SEARCH_LIMIT = 200;
+export const locSearch = (scene: string, q: string) =>
+  getJson<LocEntryDTO[]>(sceneUrl('loc/search', scene, { q, limit: LOC_SEARCH_LIMIT }));

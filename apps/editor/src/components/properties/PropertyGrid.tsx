@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { SceneNodeDTO } from '@hbm/protocol';
 import { drawsVariant } from '@hbm/scene';
 import { useEditor } from '../../state/store';
+import { PushButton } from '../chrome/Dialog';
 import { useNodeDetail } from '../../hooks/useNodeDetail';
 import { useAsync } from '../../hooks/useAsync';
 import { meshPartsOf } from '../../viewport/meshStore';
@@ -29,7 +30,7 @@ function PropRowView({ row }: { row: PropRow }) {
 
 export function PropertyGrid() {
   const { scene, sel } = useEditor(useShallow((s) => ({ scene: s.scene, sel: s.sel })));
-  const detail = useNodeDetail();
+  const { detail, error: detailError, retry } = useNodeDetail();
   const meshProgress = useEditor((s) => s.meshProgress);
 
   const skeletonRoot = scene && sel.length === 1 ? (scene.graph.nodes[sel[0]!]?.meshRoot ?? 0) : 0;
@@ -43,9 +44,9 @@ export function PropertyGrid() {
     const parts = one?.meshRoot
       ? (meshPartsOf(scene.id, one.meshRoot)?.filter((p) => drawsVariant(one.variantId, p.variantId)) ?? null)
       : null;
-    return buildPropRows(nodes, detail, scene.surfaces, parts, skeleton.value ?? null);
+    return buildPropRows(nodes, detail, scene.surfaces, parts, skeleton.value ?? null, detailError);
     // meshProgress: the model's parts may arrive after the selection.
-  }, [scene, sel, detail, meshProgress, skeleton.value]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scene, sel, detail, detailError, meshProgress, skeleton.value]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="prop-panel bevel-in">
@@ -57,6 +58,11 @@ export function PropertyGrid() {
         {rows.map((row, i) => (
           <PropRowView key={`${sel[0]}:${i}:${row.label}`} row={row} />
         ))}
+        {detailError && (
+          <div className="prop-retry">
+            <PushButton label="Retry" onClick={retry} />
+          </div>
+        )}
       </div>
     </div>
   );
