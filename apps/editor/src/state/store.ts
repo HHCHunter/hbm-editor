@@ -10,11 +10,6 @@ export const VIEW_FLAG_TITLES = {
   Li: 'Lighting',
   Tx: 'Textures',
   F: 'Fog',
-  K: 'Collision',
-  T: 'Top',
-  B: 'Bottom',
-  L: 'Left',
-  R: 'Right',
   G: 'Grid',
   Bn: 'Skeletons',
 } as const;
@@ -45,14 +40,16 @@ export interface LoadedScene {
 }
 
 export interface MeshProgress {
+  /** Model roots done, read or not. */
   loaded: number;
   total: number;
+  /** Roots whose models couldn't be read. */
+  failed: number;
 }
 
 export type Tab = 'scene' | 'textures' | 'localisation' | 'scripts' | 'animations';
 export type DialogName = 'gamePicker' | 'sceneOpen';
 export type SelMode = 'Geom' | 'Group';
-export type GizmoKind = 'Lights' | 'None';
 
 export interface ViewportFilters {
   /** The LOD level drawn; parts whose mask lacks it are skipped. */
@@ -79,7 +76,6 @@ export interface EditorState {
   view: Record<ViewFlag, boolean>;
   filters: ViewportFilters;
   selMode: SelMode;
-  gizmoKind: GizmoKind;
   sorting: 'Alpha' | 'None';
   searchOpen: boolean;
   search: string;
@@ -113,10 +109,9 @@ export function initialEditorState(): EditorState {
     frozen: {},
     expanded: {},
     cam: { ...DEFAULT_CAMERA },
-    view: { W: false, P: false, Li: true, Tx: true, F: false, K: false, T: false, B: false, L: false, R: false, G: true, Bn: false },
+    view: { W: false, P: false, Li: true, Tx: true, F: false, G: true, Bn: false },
     filters: { lod: 0, show: { collision: false, bounds: false, shadow: false, placeholder: false, helper: false } },
     selMode: 'Geom',
-    gizmoKind: 'Lights',
     sorting: 'None',
     searchOpen: false,
     search: '',

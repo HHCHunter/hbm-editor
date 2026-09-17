@@ -4,21 +4,6 @@ export function GroupHeader({ children }: { children: ReactNode }) {
   return <div className="group-hdr">{children}</div>;
 }
 
-interface IconButtonProps {
-  glyph: string;
-  title: string;
-  active?: boolean;
-  onClick: () => void;
-}
-
-export function IconButton({ glyph, title, active, onClick }: IconButtonProps) {
-  return (
-    <div className={`btn btn-icon${active ? ' active' : ''}`} title={title} onClick={onClick}>
-      {glyph}
-    </div>
-  );
-}
-
 interface TextButtonProps {
   label: string;
   active?: boolean;

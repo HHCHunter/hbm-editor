@@ -17,7 +17,7 @@ test('choose the game, open a scene, pick the model and browse its data', async 
   const open = page.getByRole('dialog', { name: 'Open Scene' });
   await open.locator('[data-scene="M01/M01_main"]').dblclick();
   await expect(open).toBeHidden();
-  await expect(page.locator('.titlebar-text').first()).toContainText('M01_main');
+  await expect(page).toHaveTitle(/M01_main/);
 
   // The outliner lists the scene's one node.
   const row = page.locator('.tree-row[data-index="0"]');

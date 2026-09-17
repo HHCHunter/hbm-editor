@@ -47,9 +47,8 @@ describe('editor-only visibility', () => {
     expect([...flags]).toEqual([0, 1, 1, 0]);
   });
 
-  it('keeps the collision flag and the K view button in step', () => {
+  it('toggles collision geometry', () => {
     toggleShown('collision');
-    expect(state().view.K).toBe(true);
     expect(state().filters.show.collision).toBe(true);
   });
 });

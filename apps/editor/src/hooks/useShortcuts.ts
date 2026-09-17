@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { DEFAULT_KEYMAP, matchesChord, type ActionId } from '../commands/defaultKeymap';
 import {
   openDialog,
   setTab,
@@ -19,11 +20,33 @@ function isTyping(target: EventTarget | null): boolean {
   );
 }
 
+interface Binding {
+  run: () => void;
+  /** Only while the scene view is showing, so keys never change a viewport the user can't see. */
+  sceneOnly?: boolean;
+}
+
+const BINDINGS: Record<ActionId, Binding> = {
+  'file.openScene': { run: () => openDialog('sceneOpen') },
+  'edit.undo': { run: () => useEditor.getState().undo() },
+  'edit.redo': { run: () => useEditor.getState().redo() },
+  'edit.hide': { run: toggleHideSelection, sceneOnly: true },
+  'view.wireframe': { run: () => toggleViewFlag('W'), sceneOnly: true },
+  'view.grid': { run: () => toggleViewFlag('G'), sceneOnly: true },
+  'view.frameAll': { run: zoomExtents, sceneOnly: true },
+  'view.frameSelected': { run: zoomSelected, sceneOnly: true },
+  'window.scene': { run: () => setTab('scene') },
+  'window.textures': { run: () => setTab('textures') },
+  'window.localisation': { run: () => setTab('localisation') },
+  'window.scripts': { run: () => setTab('scripts') },
+  'window.animations': { run: () => setTab('animations') },
+};
+
 /** The keyboard shortcuts listed in the menus. */
 export function useShortcuts(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { undo, redo, update, dialog } = useEditor.getState();
+      const { update, dialog, tab } = useEditor.getState();
       if (e.key === 'Escape') {
         update((s) => {
           s.menuOpen = null;
@@ -31,29 +54,17 @@ export function useShortcuts(): void {
         });
         return;
       }
-      if (isTyping(e.target) || e.altKey || dialog) return;
-      const ctrl = e.ctrlKey || e.metaKey;
-      const key = e.key.toLowerCase();
+      // Ctrl+Z and Ctrl+Y belong to the text field while typing.
+      if (isTyping(e.target) || dialog) return;
 
-      if (ctrl && key === 'z' && !e.shiftKey) undo();
-      else if (ctrl && (key === 'y' || (key === 'z' && e.shiftKey))) redo();
-      else if (ctrl && key === 'o') openDialog('sceneOpen');
-      else if (ctrl && key === '1') setTab('scene');
-      else if (ctrl && key === '2') setTab('textures');
-      else if (ctrl && key === '3') setTab('localisation');
-      else if (ctrl && key === '4') setTab('scripts');
-      else if (ctrl && key === '5') setTab('animations');
-      else if (ctrl) return;
-      else if (key === 'w') toggleViewFlag('W');
-      else if (key === 'l') toggleViewFlag('Li');
-      else if (key === 'f') toggleViewFlag('F');
-      else if (key === 'g') toggleViewFlag('G');
-      else if (key === 'h') toggleHideSelection();
-      else if (key === 'z' && e.shiftKey) zoomSelected();
-      else if (key === 'z') zoomExtents();
-      else return;
-
-      e.preventDefault();
+      for (const [action, chord] of Object.entries(DEFAULT_KEYMAP) as [ActionId, string][]) {
+        if (!matchesChord(e, chord)) continue;
+        const binding = BINDINGS[action];
+        if (binding.sceneOnly && tab !== 'scene') return;
+        e.preventDefault();
+        binding.run();
+        return;
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

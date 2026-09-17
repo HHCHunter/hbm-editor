@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { MenuBar } from './components/chrome/MenuBar';
 import { StatusBar } from './components/chrome/StatusBar';
 import { TabStrip } from './components/chrome/TabStrip';
-import { TitleBar } from './components/chrome/TitleBar';
 import { SceneTree } from './components/outliner/SceneTree';
 import { HeaderFields } from './components/properties/HeaderFields';
 import { PropertyGrid } from './components/properties/PropertyGrid';
@@ -18,18 +17,24 @@ import { TextureBrowser } from './panels/TextureBrowser';
 import { startUp } from './state/sceneLoader';
 import { useEditor } from './state/store';
 
+const APP_TITLE = 'Hitman: Blood Money Editor';
+
 export function App() {
   useShortcuts();
   const tab = useEditor((s) => s.tab);
   const dialog = useEditor((s) => s.dialog);
+  const sceneId = useEditor((s) => s.scene?.id ?? s.loadingScene);
 
   useEffect(() => {
     void startUp();
   }, []);
 
+  useEffect(() => {
+    document.title = sceneId ? `${sceneId} · ${APP_TITLE}` : APP_TITLE;
+  }, [sceneId]);
+
   return (
     <div className="app">
-      <TitleBar />
       <MenuBar />
       <div className="workspace">
         <ToolRail />

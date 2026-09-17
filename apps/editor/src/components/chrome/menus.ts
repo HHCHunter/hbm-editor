@@ -1,35 +1,30 @@
+import { DEFAULT_KEYMAP, type ActionId } from '../../commands/defaultKeymap';
+
 export interface MenuItem {
   label: string;
   shortcut: string;
 }
 
+const item = (label: string, action?: ActionId): MenuItem => ({ label, shortcut: action ? DEFAULT_KEYMAP[action] : '' });
+
 /** Editor2's menu bar, cut down to what the viewer can do. */
 export const MENUS: Record<string, MenuItem[]> = {
-  File: [
-    { label: 'Open Scene…', shortcut: 'Ctrl+O' },
-    { label: 'Choose Game…', shortcut: '' },
-    { label: 'Exit', shortcut: '' },
-  ],
-  Edit: [
-    { label: 'Undo', shortcut: 'Ctrl+Z' },
-    { label: 'Redo', shortcut: 'Ctrl+Y' },
-    { label: 'Hide Selection', shortcut: 'H' },
-    { label: 'Freeze Selection', shortcut: '' },
-  ],
+  File: [item('Open Scene…', 'file.openScene'), item('Choose Game…'), item('Exit')],
+  Edit: [item('Undo', 'edit.undo'), item('Redo', 'edit.redo'), item('Hide Selection', 'edit.hide'), item('Freeze Selection')],
   View: [
-    { label: 'Wireframe', shortcut: 'W' },
-    { label: 'Lighting', shortcut: 'L' },
-    { label: 'Fog', shortcut: 'F' },
-    { label: 'Grid', shortcut: 'G' },
-    { label: 'Zoom Extents', shortcut: 'Z' },
-    { label: 'Zoom Selected', shortcut: 'Shift+Z' },
+    item('Wireframe', 'view.wireframe'),
+    item('Lighting'),
+    item('Fog'),
+    item('Grid', 'view.grid'),
+    item('Frame All', 'view.frameAll'),
+    item('Frame Selected', 'view.frameSelected'),
   ],
   Window: [
-    { label: 'Scene View', shortcut: 'Ctrl+1' },
-    { label: 'Texture Browser', shortcut: 'Ctrl+2' },
-    { label: 'Localisation Browser', shortcut: 'Ctrl+3' },
-    { label: 'Script Browser', shortcut: 'Ctrl+4' },
-    { label: 'Animation Browser', shortcut: 'Ctrl+5' },
+    item('Scene View', 'window.scene'),
+    item('Texture Browser', 'window.textures'),
+    item('Localisation Browser', 'window.localisation'),
+    item('Script Browser', 'window.scripts'),
+    item('Animation Browser', 'window.animations'),
   ],
-  Help: [{ label: 'About', shortcut: '' }],
+  Help: [item('About')],
 };

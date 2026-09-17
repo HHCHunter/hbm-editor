@@ -111,7 +111,7 @@ export function zoomExtents(): void {
   const bounds = positionBounds(scene.transforms, meshNodeIndices(scene.graph));
   store().update((s) => {
     s.cam = bounds ? frame(cam, bounds) : { ...DEFAULT_CAMERA };
-    s.statusMsg = 'Zoom extents: all';
+    s.statusMsg = 'Frame all';
   });
 }
 
@@ -121,30 +121,38 @@ export function zoomSelected(): void {
   if (!bounds) return setStatus('Nothing selected');
   store().update((s) => {
     s.cam = frame(cam, bounds, 300);
-    s.statusMsg = 'Zoom to selection';
+    s.statusMsg = 'Frame selected';
   });
 }
 
-const VIEW_PRESETS: Partial<Record<ViewFlag, Pick<CameraState, 'yaw' | 'pitch'>>> = {
-  T: { pitch: 1.4, yaw: 0.01 },
-  B: { pitch: -1.4, yaw: 0.01 },
-  L: { pitch: 0.05, yaw: -1.57 },
-  R: { pitch: 0.05, yaw: 1.57 },
-};
+export const VIEW_ANGLES = {
+  Top: { pitch: 1.4, yaw: 0.01 },
+  Bottom: { pitch: -1.4, yaw: 0.01 },
+  Left: { pitch: 0.05, yaw: -1.57 },
+  Right: { pitch: 0.05, yaw: 1.57 },
+} as const satisfies Record<string, Pick<CameraState, 'yaw' | 'pitch'>>;
+
+/** Turn the camera to look from one side, keeping what it looks at and how far away it is. */
+export function viewFrom(side: keyof typeof VIEW_ANGLES): void {
+  store().update((s) => {
+    s.cam = { ...s.cam, ...VIEW_ANGLES[side] };
+    s.statusMsg = `${side} view`;
+  });
+}
+
+/** Look from the default angle again, keeping what the camera looks at and how far away it is. */
+export function resetViewAngle(): void {
+  store().update((s) => {
+    s.cam = { ...s.cam, yaw: DEFAULT_CAMERA.yaw, pitch: DEFAULT_CAMERA.pitch };
+    s.statusMsg = 'Default view angle';
+  });
+}
 
 export function toggleViewFlag(flag: ViewFlag): void {
   const title = VIEW_FLAG_TITLES[flag];
   store().update((s) => {
     const on = !s.view[flag];
     s.view[flag] = on;
-    if (flag === 'K') s.filters.show.collision = on;
-    const preset = VIEW_PRESETS[flag];
-    if (preset && on) {
-      s.cam = { ...s.cam, ...preset };
-      for (const other of ['T', 'B', 'L', 'R'] as const) if (other !== flag) s.view[other] = false;
-      s.statusMsg = `${title} view`;
-      return;
-    }
     s.statusMsg = `${title} ${on ? 'on' : 'off'}`;
   });
 }
@@ -168,7 +176,6 @@ export function toggleShown(reason: HiddenReasonDTO): void {
   store().update((s) => {
     const on = !s.filters.show[reason];
     s.filters.show[reason] = on;
-    if (reason === 'collision') s.view.K = on;
     s.statusMsg = `${REASON_TITLES[reason]} ${on ? 'shown' : 'hidden'}`;
   });
 }
@@ -250,9 +257,9 @@ export function runMenuCommand(name: string): void {
       return toggleViewFlag('F');
     case 'Grid':
       return toggleViewFlag('G');
-    case 'Zoom Extents':
+    case 'Frame All':
       return zoomExtents();
-    case 'Zoom Selected':
+    case 'Frame Selected':
       return zoomSelected();
     case 'Scene View':
       return setTab('scene');

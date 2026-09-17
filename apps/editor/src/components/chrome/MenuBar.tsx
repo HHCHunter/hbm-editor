@@ -11,6 +11,8 @@ function setMenuOpen(name: string | null) {
 
 export function MenuBar() {
   const open = useEditor((s) => s.menuOpen);
+  const sceneId = useEditor((s) => s.scene?.id ?? s.loadingScene);
+  const gameRoot = useEditor((s) => s.config?.gameRoot);
   const barRef = useRef<HTMLDivElement>(null);
   const labelRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -43,6 +45,9 @@ export function MenuBar() {
           {name}
         </div>
       ))}
+      <div className="menubar-context" title={gameRoot ?? undefined}>
+        {sceneId ?? (gameRoot ? 'No scene open' : 'No game chosen')}
+      </div>
       {open && (
         <div className="menu-panel" style={{ left: panelLeft }}>
           {items.map((item) => (
