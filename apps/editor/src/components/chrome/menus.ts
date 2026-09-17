@@ -3,20 +3,18 @@ export interface MenuItem {
   shortcut: string;
 }
 
-/** Editor2's menus, as the design artboard lists them. */
+/** Editor2's menu bar, cut down to what the viewer can do. */
 export const MENUS: Record<string, MenuItem[]> = {
   File: [
-    { label: 'New Scene', shortcut: 'Ctrl+N' },
     { label: 'Open Scene…', shortcut: 'Ctrl+O' },
-    { label: 'Save Scene', shortcut: 'Ctrl+S' },
-    { label: 'Export Locations…', shortcut: '' },
+    { label: 'Choose Game…', shortcut: '' },
     { label: 'Exit', shortcut: '' },
   ],
   Edit: [
     { label: 'Undo', shortcut: 'Ctrl+Z' },
     { label: 'Redo', shortcut: 'Ctrl+Y' },
-    { label: 'Delete Selection', shortcut: 'Del' },
-    { label: 'Duplicate', shortcut: 'Ctrl+D' },
+    { label: 'Hide Selection', shortcut: 'H' },
+    { label: 'Freeze Selection', shortcut: '' },
   ],
   View: [
     { label: 'Wireframe', shortcut: 'W' },
@@ -24,25 +22,12 @@ export const MENUS: Record<string, MenuItem[]> = {
     { label: 'Fog', shortcut: 'F' },
     { label: 'Grid', shortcut: 'G' },
     { label: 'Zoom Extents', shortcut: 'Z' },
+    { label: 'Zoom Selected', shortcut: 'Shift+Z' },
   ],
-  Scene: [
-    { label: 'Add ZGEOM', shortcut: '' },
-    { label: 'Add ZLIGHT', shortcut: '' },
-    { label: 'Group Selection', shortcut: 'Ctrl+G' },
-    { label: 'Rebuild PRIM', shortcut: '' },
+  Window: [
+    { label: 'Scene View', shortcut: 'Ctrl+1' },
+    { label: 'Texture Browser', shortcut: 'Ctrl+2' },
+    { label: 'Localisation Browser', shortcut: 'Ctrl+3' },
   ],
-  Tools: [
-    { label: 'Pathfinder Bake', shortcut: '' },
-    { label: 'Light Baker', shortcut: '' },
-    { label: 'Collision Check', shortcut: '' },
-  ],
-  Connections: [
-    { label: 'Attach to Game', shortcut: 'F5' },
-    { label: 'Live Sync', shortcut: '' },
-    { label: 'Disconnect', shortcut: '' },
-  ],
-  Help: [
-    { label: 'Editor2 Manual', shortcut: 'F1' },
-    { label: 'About', shortcut: '' },
-  ],
+  Help: [{ label: 'About', shortcut: '' }],
 };

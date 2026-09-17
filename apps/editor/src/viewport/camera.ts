@@ -1,13 +1,19 @@
-import type { Vec3 } from '../scene/types';
+import type { Bounds } from '../scene/sceneModel';
 import type { CameraState } from '../state/store';
 
 /** Half of Editor2's vertical field of view, in radians. */
 const HALF_FOV = 0.42;
 export const VERTICAL_FOV_DEG = (HALF_FOV * 2 * 180) / Math.PI;
 
-export const MIN_DIST = 4;
-export const MAX_DIST = 240;
+export const MIN_DIST = 1;
+export const MAX_DIST = 1_000_000;
 export const PITCH_LIMIT = 1.45;
+
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
 
 export interface CameraBasis {
   eye: Vec3;
@@ -64,4 +70,18 @@ export function pan(c: CameraState, dx: number, dy: number): CameraState {
 /** Mouse wheel: move towards or away from the target. */
 export function zoom(c: CameraState, deltaY: number): CameraState {
   return { ...c, dist: clamp(c.dist * (deltaY > 0 ? 1.12 : 0.9), MIN_DIST, MAX_DIST) };
+}
+
+/** Aim at the middle of `bounds` from far enough away to see all of it, keeping the view angle. */
+export function frame(c: CameraState, bounds: Bounds, minRadius = 100): CameraState {
+  const [x0, y0, z0] = bounds.min;
+  const [x1, y1, z1] = bounds.max;
+  const radius = Math.max(minRadius, Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 2);
+  return {
+    ...c,
+    tx: (x0 + x1) / 2,
+    ty: (y0 + y1) / 2,
+    tz: (z0 + z1) / 2,
+    dist: clamp(radius / Math.tan(HALF_FOV), MIN_DIST, MAX_DIST),
+  };
 }

@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { isDefined, sceneIndex } from '../../scene/sceneIndex';
+import type { SceneNodeDTO } from '@hbm/protocol';
 import { useEditor } from '../../state/store';
-import { CommitInput } from '../chrome/widgets';
+import { useNodeDetail } from '../../hooks/useNodeDetail';
+import { meshPartsOf } from '../../viewport/meshStore';
 import { buildPropRows, type PropRow } from './rows';
 
 function PropRowView({ row }: { row: PropRow }) {
@@ -13,60 +14,29 @@ function PropRowView({ row }: { row: PropRow }) {
       </div>
     );
   }
-
-  let control;
-  switch (row.kind) {
-    case 'text':
-      control = (
-        <CommitInput className="prop-input" value={row.value} readOnly={!row.onCommit} onCommit={row.onCommit} />
-      );
-      break;
-    case 'check':
-      control = (
-        <input
-          type="checkbox"
-          className="prop-check"
-          checked={row.checked}
-          disabled={!row.onToggle}
-          onChange={() => row.onToggle?.()}
-        />
-      );
-      break;
-    case 'select':
-      control = (
-        <select
-          className="prop-select"
-          value={row.value}
-          disabled={!row.onSelect}
-          onChange={(e) => row.onSelect?.(e.target.value)}
-        >
-          {row.options.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
-      );
-      break;
-  }
-
   return (
-    <div className="prop-row">
+    <div className="prop-row" title={`${row.label}: ${row.value}`}>
       <div className="prop-label">{row.label}</div>
-      <div className="prop-value">{control}</div>
+      <div className="prop-value">
+        <input className="prop-input" value={row.value} readOnly />
+      </div>
     </div>
   );
 }
 
 export function PropertyGrid() {
-  const { objects, sel } = useEditor(useShallow((s) => ({ objects: s.objects, sel: s.sel })));
-  const rows = useMemo(() => {
-    const index = sceneIndex(objects);
-    return buildPropRows(sel.map((id) => index.byId.get(id)).filter(isDefined));
-  }, [objects, sel]);
+  const { scene, sel } = useEditor(useShallow((s) => ({ scene: s.scene, sel: s.sel })));
+  const detail = useNodeDetail();
+  const meshProgress = useEditor((s) => s.meshProgress);
 
-  // Keyed by selection so a half-typed value never carries over to another object.
-  const selectionKey = sel.join(',');
+  const rows = useMemo(() => {
+    if (!scene) return [];
+    const nodes = sel.map((i) => scene.graph.nodes[i]).filter((n): n is SceneNodeDTO => !!n);
+    const one = nodes.length === 1 ? nodes[0]! : null;
+    const parts = one?.meshRoot ? meshPartsOf(scene.id, one.meshRoot) : null;
+    return buildPropRows(nodes, detail, scene.surfaces, parts);
+    // meshProgress: the model's parts may arrive after the selection.
+  }, [scene, sel, detail, meshProgress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="prop-panel bevel-in">
@@ -76,7 +46,7 @@ export function PropertyGrid() {
       </div>
       <div className="prop-list">
         {rows.map((row, i) => (
-          <PropRowView key={`${selectionKey}:${i}:${row.label}`} row={row} />
+          <PropRowView key={`${sel[0]}:${i}:${row.label}`} row={row} />
         ))}
       </div>
     </div>

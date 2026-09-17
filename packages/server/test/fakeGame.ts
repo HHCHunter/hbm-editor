@@ -24,12 +24,18 @@ export interface FakeGame {
 
 function meshPool(): { bytes: Uint8Array; root: number } {
   const b = new PrmBuilder();
+  // A floor triangle big enough to see and click, with +Y normals.
+  const corners = [
+    [-100, 0, -100],
+    [100, 0, -100],
+    [0, 0, 100],
+  ];
   const vertices = b.add(3 * 40, (a, at) => {
     for (let i = 0; i < 3; i++) {
       const v = at + i * 40;
-      a.f32(v, i);
-      a.f32(v + 4, 1);
-      a.f32(v + 8, 0);
+      a.f32(v, corners[i]![0]!);
+      a.f32(v + 4, corners[i]![1]!);
+      a.f32(v + 8, corners[i]![2]!);
       a.u32(v + 12, 0x007fff7f);
       a.u32(v + 16, 0xffffffff);
     }

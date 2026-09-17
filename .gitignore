@@ -12,3 +12,5 @@ data/
 
 # anything derived from game files must never be committed
 .cache/
+test-results/
+playwright-report/

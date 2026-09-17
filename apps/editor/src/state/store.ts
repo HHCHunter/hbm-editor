@@ -1,13 +1,12 @@
 import type { Draft } from 'immer';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import type { ConfigDTO, HiddenReasonDTO, MeshRootDTO, SceneGraphDTO, SurfaceDTO } from '@hbm/protocol';
 import type { Command } from '../commands/Command';
-import { buildMockScene } from '../dev/mockScene';
-import type { SceneObject } from '../scene/types';
 
 export const VIEW_FLAG_TITLES = {
   W: 'Wireframe',
-  P: 'Points',
+  P: 'Markers',
   Li: 'Lighting',
   Tx: 'Textures',
   F: 'Fog',
@@ -31,44 +30,66 @@ export interface CameraState {
   tz: number;
 }
 
-export const DEFAULT_CAMERA: CameraState = { yaw: 0.72, pitch: 0.34, dist: 52, tx: 0, ty: 5, tz: 0 };
+export const DEFAULT_CAMERA: CameraState = { yaw: 0.72, pitch: 0.34, dist: 2000, tx: 0, ty: 0, tz: 0 };
 
-export type SelMode = 'Geom' | 'Group' | 'World';
-export type CoordSys = 'Local' | 'Global';
-export type Pivot = 'Center' | 'Position' | 'Average';
-export type GizmoMode = 'move' | 'rotate' | 'scale';
-export type GizmoKind = 'Lights' | 'Sound' | 'Paths' | 'None';
+export interface LoadedScene {
+  id: string;
+  graph: SceneGraphDTO;
+  /** 12 floats per node: row-major 3×3, then the translation. */
+  transforms: Float32Array;
+  surfaces: Record<number, SurfaceDTO>;
+  roots: Record<number, MeshRootDTO>;
+  /** Child node indices by parent index + 1; slot 0 holds the scene root's children. */
+  children: number[][];
+}
+
+export interface MeshProgress {
+  loaded: number;
+  total: number;
+}
+
+export type Tab = 'scene' | 'textures' | 'localisation';
+export type DialogName = 'gamePicker' | 'sceneOpen';
+export type SelMode = 'Geom' | 'Group';
+export type GizmoKind = 'Lights' | 'None';
+
+export interface ViewportFilters {
+  /** The LOD level drawn; parts whose mask lacks it are skipped. */
+  lod: number;
+  /** Non-surface geometry shown in the viewport. */
+  show: Record<HiddenReasonDTO, boolean>;
+}
 
 export interface EditorState {
-  scenePath: string;
-  objects: SceneObject[];
-  sel: string[];
-  /** Outliner groups the user collapsed. UI state, not part of undo. */
-  collapsed: Record<string, boolean>;
+  server: 'connecting' | 'ready' | 'unreachable';
+  config: ConfigDTO | null;
+  dialog: DialogName | null;
+  tab: Tab;
+  scene: LoadedScene | null;
+  loadingScene: string | null;
+  meshProgress: MeshProgress | null;
+  sel: number[];
+  /** Editor-only visibility and locking, by node index. Never written to the game. */
+  hidden: Record<number, boolean>;
+  frozen: Record<number, boolean>;
+  /** Outliner nodes the user opened. */
+  expanded: Record<number, boolean>;
   cam: CameraState;
   view: Record<ViewFlag, boolean>;
+  filters: ViewportFilters;
   selMode: SelMode;
-  coord: CoordSys;
-  pivot: Pivot;
-  gizmoMode: GizmoMode;
-  sorting: 'Alpha' | 'None';
-  snap: boolean;
-  snapAngle: string;
-  snapX: string;
-  snapY: string;
-  snapZ: string;
   gizmoKind: GizmoKind;
+  sorting: 'Alpha' | 'None';
   searchOpen: boolean;
   search: string;
   menuOpen: string | null;
   statusMsg: string;
   undoStack: Command[];
   redoStack: Command[];
-  dirty: boolean;
 }
 
 export interface EditorStore extends EditorState {
-  /** Change UI state. Not recorded for undo. */
+  /** Change state without recording it for undo. */
   update: (recipe: (s: Draft<EditorState>) => void) => void;
   status: (msg: string) => void;
   /** Apply an edit and record it for undo. */
@@ -78,32 +99,30 @@ export interface EditorStore extends EditorState {
 }
 
 export function initialEditorState(): EditorState {
-  const mock = buildMockScene();
   return {
-    scenePath: 'mock scene (no game loaded)',
-    objects: mock.objects,
-    sel: ['chand'],
-    collapsed: mock.collapsed,
+    server: 'connecting',
+    config: null,
+    dialog: null,
+    tab: 'scene',
+    scene: null,
+    loadingScene: null,
+    meshProgress: null,
+    sel: [],
+    hidden: {},
+    frozen: {},
+    expanded: {},
     cam: { ...DEFAULT_CAMERA },
-    view: { W: false, P: false, Li: true, Tx: true, F: true, K: false, T: false, B: false, L: false, R: false, G: true },
+    view: { W: false, P: false, Li: true, Tx: true, F: false, K: false, T: false, B: false, L: false, R: false, G: true },
+    filters: { lod: 0, show: { collision: false, bounds: false, shadow: false, placeholder: false, helper: false } },
     selMode: 'Geom',
-    coord: 'Local',
-    pivot: 'Average',
-    gizmoMode: 'move',
-    sorting: 'None',
-    snap: false,
-    snapAngle: '45',
-    snapX: '100',
-    snapY: '100',
-    snapZ: '100',
     gizmoKind: 'Lights',
+    sorting: 'None',
     searchOpen: false,
     search: '',
     menuOpen: null,
-    statusMsg: 'Ready',
+    statusMsg: 'Connecting to the local server…',
     undoStack: [],
     redoStack: [],
-    dirty: false,
   };
 }
 
@@ -126,7 +145,6 @@ export const useEditor = create<EditorStore>()(
         cmd.apply(s);
         s.undoStack.push(cmd);
         s.redoStack = [];
-        s.dirty = true;
         s.statusMsg = cmd.label;
       }),
 
@@ -137,7 +155,6 @@ export const useEditor = create<EditorStore>()(
         cmd.revert(s);
         s.undoStack.pop();
         s.redoStack.push(cmd);
-        s.dirty = true;
         s.statusMsg = `Undo: ${cmd.label}`;
       });
     },
@@ -149,7 +166,6 @@ export const useEditor = create<EditorStore>()(
         cmd.apply(s);
         s.redoStack.pop();
         s.undoStack.push(cmd);
-        s.dirty = true;
         s.statusMsg = `Redo: ${cmd.label}`;
       });
     },

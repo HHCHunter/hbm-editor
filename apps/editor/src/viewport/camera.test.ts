@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CAMERA } from '../state/store';
-import { MAX_DIST, MIN_DIST, PITCH_LIMIT, cameraBasis, orbit, pan, zoom } from './camera';
+import { MAX_DIST, MIN_DIST, PITCH_LIMIT, cameraBasis, frame, orbit, pan, zoom } from './camera';
 
 const dot = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
   a.x * b.x + a.y * b.y + a.z * b.z;
@@ -22,10 +22,17 @@ describe('camera', () => {
 
   it('keeps zoom inside the distance limits', () => {
     let c = DEFAULT_CAMERA;
-    for (let i = 0; i < 100; i++) c = zoom(c, 1);
+    for (let i = 0; i < 400; i++) c = zoom(c, 1);
     expect(c.dist).toBe(MAX_DIST);
-    for (let i = 0; i < 100; i++) c = zoom(c, -1);
+    for (let i = 0; i < 400; i++) c = zoom(c, -1);
     expect(c.dist).toBe(MIN_DIST);
+  });
+
+  it('frames bounds from their middle, far enough back to fit them', () => {
+    const c = frame(DEFAULT_CAMERA, { min: [-1000, 0, -500], max: [1000, 200, 500] });
+    expect([c.tx, c.ty, c.tz]).toEqual([0, 100, 0]);
+    expect(c.dist).toBeGreaterThan(1000);
+    expect(c.yaw).toBe(DEFAULT_CAMERA.yaw);
   });
 
   it('pans the target without changing the view direction', () => {

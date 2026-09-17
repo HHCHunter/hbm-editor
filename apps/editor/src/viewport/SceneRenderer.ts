@@ -1,453 +1,544 @@
 import * as THREE from 'three';
-import { descendantIds, isVisible, sceneIndex } from '../scene/sceneIndex';
-import type { SceneObject } from '../scene/types';
-import type { CameraState, EditorState, GizmoMode } from '../state/store';
+import type { SurfaceDTO, TextureDTO } from '@hbm/protocol';
+import { partHiddenReason } from '@hbm/scene';
+import { listTextures, textureRgbaUrl } from '../api/endpoints';
+import { effectiveFlags, meshNodeIndices, positionBounds, TRANSFORM } from '../scene/sceneModel';
+import type { CameraState, EditorState, LoadedScene } from '../state/store';
 import { VERTICAL_FOV_DEG, cameraBasis, orbit, pan, zoom } from './camera';
+import { loadSceneMeshes, meshPartsOf, type MeshLoad, type MeshPartData } from './meshStore';
 
 export interface RendererCallbacks {
-  onCamera(cam: CameraState): void;
-  onPick(id: string | null, additive: boolean): void;
+  onCamera: (cam: CameraState) => void;
+  onPick: (index: number | null, additive: boolean) => void;
+  onMeshProgress: (loaded: number, total: number) => void;
+  onStats: (text: string) => void;
+  onError: (message: string) => void;
 }
 
-const WHITE = 0xffffff;
-const DEFAULT_WIRE = 0x39ff39;
-const LIGHT_COLOR = 0xffb45a;
-const LIGHT_GIZMO_COLOR = 0xffc46e;
-const POINT_COLOR = 0x66ccff;
-/** Pointer travel (px) below which a press counts as a click, not a drag. */
-const CLICK_SLOP = 5;
-const LIGHT_PICK_RADIUS_PX = 11;
-/** Screen size of a light gizmo, in pixels. */
-const LIGHT_GIZMO_PX = 8;
+/** Largest texture edge uploaded; bigger textures use a smaller mip level. */
+const MAX_TEXTURE_EDGE = 1024;
+const MAX_HIGHLIGHTS = 256;
+const DRAG_THRESHOLD = 4;
+const CLEAR_COLOR = 0x1c1c1c;
 
-const AXES: [THREE.Vector3, number][] = [
-  [new THREE.Vector3(1, 0, 0), 0xff5a5a],
-  [new THREE.Vector3(0, 1, 0), 0x7cff7c],
-  [new THREE.Vector3(0, 0, 1), 0x7c9cff],
-];
-
-interface BoxEntry {
-  obj: SceneObject;
-  group: THREE.Group;
-  mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshLambertMaterial>;
-  edges: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
-  points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+interface PartMesh {
+  part: MeshPartData;
+  mesh: THREE.InstancedMesh;
+  /** Node index per instance. */
+  nodes: number[];
 }
 
-interface LightEntry {
-  obj: SceneObject;
-  light: THREE.PointLight;
-  gizmo: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
-}
+type ViewKey = Pick<EditorState['view'], 'W' | 'Li' | 'Tx'>;
 
-interface Drag {
-  x: number;
-  y: number;
-  moved: number;
-  button: number;
-  shift: boolean;
-}
-
-interface TransformGizmo {
-  root: THREE.Group;
-  tips: Record<GizmoMode, THREE.Group>;
-  dispose(): void;
+function nodeMatrix(transforms: Float32Array, index: number, out: THREE.Matrix4): THREE.Matrix4 {
+  const t = transforms.subarray(index * TRANSFORM, (index + 1) * TRANSFORM);
+  // Row-major rotation acting on column vectors, then the translation.
+  return out.set(t[0]!, t[1]!, t[2]!, t[9]!, t[3]!, t[4]!, t[5]!, t[10]!, t[6]!, t[7]!, t[8]!, t[11]!, 0, 0, 0, 1);
 }
 
 /**
- * The M0 viewport: draws the mock scene's boxes and lights with three.js, rendering on demand.
- * M1 replaces the per-object boxes with instanced meshes from real scene data.
+ * Draws a loaded scene: one InstancedMesh per model part, placed at every node that uses the model.
+ * Everything lives under a group that flips Z, converting the engine's left-handed coordinates.
  */
 export class SceneRenderer {
-  private readonly host: HTMLElement;
-  private readonly callbacks: RendererCallbacks;
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly camera = new THREE.PerspectiveCamera(VERTICAL_FOV_DEG, 1, 1, 2_000_000);
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(VERTICAL_FOV_DEG, 1, 0.3, 4000);
-  /** Glacier is left-handed. Scaling Z by -1 here maps engine coordinates into three.js space. */
   private readonly world = new THREE.Group();
-  private readonly content = new THREE.Group();
-  private readonly lightGizmos = new THREE.Group();
-  private readonly grid = new THREE.GridHelper(96, 12, 0x5a5a6e, 0x3a3a46);
-  private readonly ambient = new THREE.AmbientLight(WHITE, 0);
-  private readonly sun = new THREE.DirectionalLight(WHITE, 0);
-  private readonly fog = new THREE.Fog(0x000000, 12, 142);
-  private readonly raycaster = new THREE.Raycaster();
-  private readonly unitBox = new THREE.BoxGeometry(1, 1, 1);
-  private readonly unitEdges = new THREE.EdgesGeometry(this.unitBox);
-  private readonly unitCorners = buildCornerGeometry();
-  private readonly lightGizmoGeometry = buildLightGizmoGeometry();
-  private readonly transformGizmo = buildTransformGizmo();
+  private readonly models = new THREE.Group();
+  private readonly overlays = new THREE.Group();
+  private readonly sun = new THREE.DirectionalLight(0xffffff, 1.6);
   private readonly resizeObserver: ResizeObserver;
-  private readonly size = new THREE.Vector2();
 
-  private boxes: BoxEntry[] = [];
-  private lights: LightEntry[] = [];
-  private builtFrom: readonly SceneObject[] | null = null;
   private state: EditorState | null = null;
-  private frameRequest = 0;
-  private drag: Drag | null = null;
+  private loaded: LoadedScene | null = null;
+  private load: MeshLoad | null = null;
+  private parts: PartMesh[] = [];
+  private instancesByNode = new Map<number, PartMesh[]>();
+  private variantByRoot = new Map<number, number>();
+  private hiddenNodes: Uint8Array = new Uint8Array(0);
+  private frozenNodes: Uint8Array = new Uint8Array(0);
 
-  constructor(host: HTMLElement, callbacks: RendererCallbacks) {
-    this.host = host;
-    this.callbacks = callbacks;
+  private materials = new Map<string, THREE.Material>();
+  private textures = new Map<number, THREE.Texture | null>();
+  private textureInfo: Promise<Map<number, TextureDTO>> | null = null;
+  private grid: THREE.GridHelper | null = null;
+  private markers: THREE.Points | null = null;
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-    this.renderer.setClearColor(0x000000);
+  private needsRender = true;
+  private frame = 0;
+  private lastRenderMs = 0;
+  private drag: { x: number; y: number; button: number; shift: boolean; moved: boolean } | null = null;
+
+  constructor(
+    private readonly host: HTMLElement,
+    private readonly callbacks: RendererCallbacks,
+  ) {
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setClearColor(CLEAR_COLOR);
     host.appendChild(this.renderer.domElement);
 
     this.world.scale.set(1, 1, -1);
-    const gridMaterial = this.grid.material as THREE.Material;
-    gridMaterial.transparent = true;
-    gridMaterial.opacity = 0.6;
-    this.world.add(this.grid, this.content, this.lightGizmos, this.transformGizmo.root);
-    this.sun.position.set(0.35, 1, 0.55);
-    this.scene.add(this.world, this.ambient, this.sun);
+    this.world.add(this.models, this.overlays);
+    this.scene.add(this.world);
+    this.scene.add(new THREE.HemisphereLight(0xdfe6ee, 0x3a3630, 1.4));
+    this.scene.add(this.camera);
+    this.camera.add(this.sun);
+    this.sun.position.set(0.4, 1, 0.3);
 
-    const canvas = this.renderer.domElement;
-    canvas.addEventListener('pointerdown', this.onPointerDown);
-    canvas.addEventListener('wheel', this.onWheel, { passive: false });
-    canvas.addEventListener('contextmenu', this.onContextMenu);
-    window.addEventListener('pointermove', this.onPointerMove);
-    window.addEventListener('pointerup', this.onPointerUp);
-
-    this.resizeObserver = new ResizeObserver(() => this.requestRender());
+    this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(host);
+    this.resize();
+    this.bindPointer();
+    this.frame = requestAnimationFrame(this.tick);
   }
+
+  // ---------------------------------------------------------------- state
 
   update(state: EditorState): void {
+    const prev = this.state;
     this.state = state;
-    if (state.objects !== this.builtFrom) {
-      this.rebuild(state.objects);
-      this.builtFrom = state.objects;
+
+    if (state.scene !== this.loaded) this.setScene(state.scene);
+    if (!prev || prev.cam !== state.cam) this.applyCamera(state.cam);
+    if (!prev || prev.view.W !== state.view.W || prev.view.Li !== state.view.Li || prev.view.Tx !== state.view.Tx) {
+      this.refreshMaterials();
     }
-    this.requestRender();
+    if (!prev || prev.view.F !== state.view.F || prev.cam.dist !== state.cam.dist) this.applyFog();
+    if (this.grid) this.grid.visible = state.view.G;
+    if (!prev || prev.view.P !== state.view.P || prev.scene !== state.scene) this.buildMarkers();
+    if (!prev || prev.filters !== state.filters) this.applyFilters();
+    if (!prev || prev.hidden !== state.hidden || prev.scene !== state.scene) {
+      this.hiddenNodes = state.scene ? effectiveFlags(state.scene.graph.nodes, state.hidden) : new Uint8Array(0);
+      for (const part of this.parts) this.placeInstances(part);
+    }
+    if (!prev || prev.frozen !== state.frozen || prev.scene !== state.scene) {
+      this.frozenNodes = state.scene ? effectiveFlags(state.scene.graph.nodes, state.frozen) : new Uint8Array(0);
+    }
+    if (!prev || prev.sel !== state.sel || prev.hidden !== state.hidden) this.buildHighlights();
+    this.needsRender = true;
   }
 
-  dispose(): void {
-    cancelAnimationFrame(this.frameRequest);
-    this.resizeObserver.disconnect();
-    const canvas = this.renderer.domElement;
-    canvas.removeEventListener('pointerdown', this.onPointerDown);
-    canvas.removeEventListener('wheel', this.onWheel);
-    canvas.removeEventListener('contextmenu', this.onContextMenu);
-    window.removeEventListener('pointermove', this.onPointerMove);
-    window.removeEventListener('pointerup', this.onPointerUp);
+  private setScene(scene: LoadedScene | null): void {
+    this.load?.cancel();
+    this.load = null;
+    this.clearModels();
+    this.loaded = scene;
+    this.textureInfo = null;
+    if (!scene) return;
 
-    this.disposeObjects();
-    this.unitBox.dispose();
-    this.unitEdges.dispose();
-    this.unitCorners.dispose();
-    this.lightGizmoGeometry.dispose();
-    this.transformGizmo.dispose();
-    this.grid.geometry.dispose();
-    (this.grid.material as THREE.Material).dispose();
-    this.renderer.dispose();
-    canvas.remove();
+    const placed = new Map<number, number[]>();
+    for (const node of scene.graph.nodes) {
+      if (!node.meshRoot) continue;
+      const list = placed.get(node.meshRoot) ?? [];
+      list.push(node.index);
+      placed.set(node.meshRoot, list);
+    }
+    this.buildGrid(scene);
+
+    const roots = [...placed.keys()];
+    this.callbacks.onMeshProgress(0, roots.length);
+    this.load = loadSceneMeshes(
+      scene.id,
+      roots,
+      (batch, loaded) => {
+        if (this.loaded !== scene) return;
+        for (const root of batch) this.addRoot(scene, root, placed.get(root) ?? []);
+        this.callbacks.onMeshProgress(loaded, roots.length);
+        this.needsRender = true;
+      },
+      (err) => this.callbacks.onError(`Couldn't load models: ${err instanceof Error ? err.message : String(err)}`),
+    );
   }
 
-  // ------------------------------------------------------------ scene building
+  private addRoot(scene: LoadedScene, root: number, nodes: number[]): void {
+    const parts = meshPartsOf(scene.id, root) ?? [];
+    // A model with variants draws its shared parts plus its first variant.
+    const variants = parts.map((p) => p.variantId).filter((v) => v !== 0);
+    this.variantByRoot.set(root, variants.length ? Math.min(...variants) : 0);
 
-  private disposeObjects(): void {
-    for (const b of this.boxes) {
-      b.mesh.material.dispose();
-      b.edges.material.dispose();
-      b.points.material.dispose();
-    }
-    for (const l of this.lights) {
-      l.gizmo.material.dispose();
-      l.light.dispose();
-    }
-    this.content.clear();
-    this.lightGizmos.clear();
-    this.boxes = [];
-    this.lights = [];
-  }
+    for (const part of parts) {
+      if (!part.indices.length) continue;
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(part.positions, 3));
+      if (part.uvs) geometry.setAttribute('uv', new THREE.BufferAttribute(part.uvs, 2));
+      geometry.setAttribute('color', new THREE.BufferAttribute(part.colors, 4, true));
+      geometry.setIndex(new THREE.BufferAttribute(part.indices, 1));
+      if (part.normals) geometry.setAttribute('normal', new THREE.BufferAttribute(part.normals, 3));
+      else geometry.computeVertexNormals();
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
 
-  private rebuild(objects: readonly SceneObject[]): void {
-    this.disposeObjects();
-    for (const obj of objects) {
-      if (obj.size) {
-        const group = new THREE.Group();
-        group.position.set(obj.pos.x, obj.pos.y, obj.pos.z);
-        group.scale.set(obj.size.x, obj.size.y, obj.size.z);
-        const mesh = new THREE.Mesh(
-          this.unitBox,
-          new THREE.MeshLambertMaterial({
-            color: obj.tint,
-            // Push faces back slightly so selection edges drawn on the same surface stay visible.
-            polygonOffset: true,
-            polygonOffsetFactor: 1,
-            polygonOffsetUnits: 1,
-          }),
-        );
-        mesh.userData.id = obj.id;
-        const edges = new THREE.LineSegments(this.unitEdges, new THREE.LineBasicMaterial());
-        const points = new THREE.Points(
-          this.unitCorners,
-          new THREE.PointsMaterial({ size: 3, sizeAttenuation: false }),
-        );
-        group.add(mesh, edges, points);
-        this.content.add(group);
-        this.boxes.push({ obj, group, mesh, edges, points });
-      }
-      if (obj.light) {
-        const light = new THREE.PointLight(LIGHT_COLOR, 0, 0, 1);
-        light.position.set(obj.pos.x, obj.pos.y, obj.pos.z);
-        this.content.add(light);
-        const gizmo = new THREE.LineSegments(
-          this.lightGizmoGeometry,
-          new THREE.LineBasicMaterial({ depthTest: false, transparent: true }),
-        );
-        gizmo.position.copy(light.position);
-        gizmo.renderOrder = 9;
-        this.lightGizmos.add(gizmo);
-        this.lights.push({ obj, light, gizmo });
+      const mesh = new THREE.InstancedMesh(geometry, this.materialFor(part.materialSlot), nodes.length);
+      const entry: PartMesh = { part, mesh, nodes };
+      this.placeInstances(entry);
+      this.applyPartFilter(entry);
+      this.models.add(mesh);
+      this.parts.push(entry);
+      for (const node of nodes) {
+        const list = this.instancesByNode.get(node) ?? [];
+        list.push(entry);
+        this.instancesByNode.set(node, list);
       }
     }
+    if (this.state?.sel.some((i) => nodes.includes(i))) this.buildHighlights();
   }
 
-  // ------------------------------------------------------------ rendering
-
-  private requestRender(): void {
-    if (this.frameRequest) return;
-    this.frameRequest = requestAnimationFrame(() => {
-      this.frameRequest = 0;
-      this.render();
-    });
+  private placeInstances(entry: PartMesh): void {
+    const { mesh, nodes } = entry;
+    const transforms = this.loaded?.transforms;
+    if (!transforms) return;
+    const m = new THREE.Matrix4();
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    nodes.forEach((node, i) => mesh.setMatrixAt(i, this.hiddenNodes[node] ? zero : nodeMatrix(transforms, node, m)));
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
   }
 
-  private render(): void {
-    const st = this.state;
-    if (!st || !this.resize()) return;
-    this.applyCamera(st.cam);
-    this.sync(st);
-    this.renderer.render(this.scene, this.camera);
-  }
-
-  /** Match the drawing buffer to the host. Returns false while the host has no size. */
-  private resize(): boolean {
-    const w = this.host.clientWidth;
-    const h = this.host.clientHeight;
-    if (!w || !h) return false;
-    this.renderer.getSize(this.size);
-    if (this.size.x !== w || this.size.y !== h) {
-      this.renderer.setSize(w, h, false);
-      this.camera.aspect = w / h;
-      this.camera.updateProjectionMatrix();
+  private clearModels(): void {
+    for (const { mesh } of this.parts) {
+      mesh.geometry.dispose();
+      mesh.dispose();
     }
-    return true;
+    this.models.clear();
+    this.parts = [];
+    this.instancesByNode.clear();
+    this.variantByRoot.clear();
+    this.clearOverlays();
+    for (const material of this.materials.values()) material.dispose();
+    this.materials.clear();
+    for (const texture of this.textures.values()) texture?.dispose();
+    this.textures.clear();
+    if (this.grid) {
+      this.scene.remove(this.grid);
+      this.grid.dispose();
+      this.grid = null;
+    }
+    if (this.markers) {
+      this.world.remove(this.markers);
+      this.markers.geometry.dispose();
+      (this.markers.material as THREE.Material).dispose();
+      this.markers = null;
+    }
   }
+
+  // ---------------------------------------------------------------- filters
+
+  private applyFilters(): void {
+    for (const part of this.parts) this.applyPartFilter(part);
+  }
+
+  private applyPartFilter(entry: PartMesh): void {
+    const state = this.state;
+    const scene = this.loaded;
+    if (!state || !scene) return;
+    const { part } = entry;
+    const lodOk = part.lodMask === 0 || (part.lodMask & (1 << state.filters.lod)) !== 0;
+    const variantOk = part.variantId === 0 || part.variantId === this.variantByRoot.get(part.root);
+    const surface = scene.surfaces[part.materialSlot];
+    const reason = surface ? partHiddenReason(surface, part.drawMode) : null;
+    const reasonOk = reason === null || state.filters.show[reason];
+    entry.mesh.visible = lodOk && variantOk && reasonOk;
+    // Non-surface geometry is drawn as a see-through overlay so it doesn't hide the level.
+    if (reason) entry.mesh.material = this.helperMaterial(reason);
+  }
+
+  // ---------------------------------------------------------------- materials and textures
+
+  private materialFor(slot: number): THREE.Material {
+    const view = this.viewKey();
+    const key = `${slot}|${view.W}|${view.Li}|${view.Tx}`;
+    let material = this.materials.get(key);
+    if (material) return material;
+
+    const surface: SurfaceDTO | undefined = this.loaded?.surfaces[slot];
+    const params: THREE.MeshLambertMaterialParameters = {
+      color: new THREE.Color().setRGB(...((surface?.baseColor.slice(0, 3) ?? [1, 1, 1]) as [number, number, number]), THREE.SRGBColorSpace),
+      wireframe: view.W,
+      vertexColors: true,
+      side: surface?.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+    };
+    if (surface?.alpha === 'mask') params.alphaTest = surface.alphaCutoff ?? 0.5;
+    if (surface?.alpha === 'blend' || surface?.additive) {
+      params.transparent = true;
+      params.depthWrite = false;
+      params.opacity = surface.opacity;
+      if (surface.additive) params.blending = THREE.AdditiveBlending;
+    }
+    material = view.Li ? new THREE.MeshLambertMaterial(params) : new THREE.MeshBasicMaterial(params);
+    this.materials.set(key, material);
+
+    if (view.Tx && surface?.diffuseTextureId != null) {
+      const target = material as THREE.MeshLambertMaterial;
+      void this.texture(surface.diffuseTextureId).then((texture) => {
+        if (!texture) return;
+        target.map = texture;
+        target.needsUpdate = true;
+        this.needsRender = true;
+      });
+    }
+    return material;
+  }
+
+  private helperMaterial(reason: string): THREE.Material {
+    const key = `helper|${reason}|${this.viewKey().W}`;
+    let material = this.materials.get(key);
+    if (!material) {
+      const colors: Record<string, number> = { collision: 0x40c0ff, bounds: 0xffa030, shadow: 0x606060, placeholder: 0xff40ff, helper: 0x80ff80 };
+      material = new THREE.MeshBasicMaterial({
+        color: colors[reason] ?? 0xffffff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+      });
+      this.materials.set(key, material);
+    }
+    return material;
+  }
+
+  private viewKey(): ViewKey {
+    const view = this.state?.view;
+    return { W: view?.W ?? false, Li: view?.Li ?? true, Tx: view?.Tx ?? true };
+  }
+
+  private refreshMaterials(): void {
+    const old = [...this.materials.values()];
+    this.materials.clear();
+    for (const entry of this.parts) entry.mesh.material = this.materialFor(entry.part.materialSlot);
+    this.applyFilters();
+    for (const material of old) material.dispose();
+    this.buildHighlights();
+  }
+
+  private async texture(id: number): Promise<THREE.Texture | null> {
+    if (this.textures.has(id)) return this.textures.get(id) ?? null;
+    const scene = this.loaded;
+    if (!scene) return null;
+    this.textures.set(id, null);
+
+    this.textureInfo ??= listTextures(scene.id).then((list) => new Map(list.map((t) => [t.id, t])));
+    try {
+      const info = (await this.textureInfo).get(id);
+      if (!info) return null;
+      let level = info.levels.findIndex((l) => l.size > 0 && Math.max(l.width, l.height) <= MAX_TEXTURE_EDGE);
+      if (level < 0) level = info.levels.findIndex((l) => l.size > 0);
+      const size = info.levels[level];
+      if (!size) return null;
+
+      const res = await fetch(textureRgbaUrl(scene.id, id, level));
+      if (!res.ok || this.loaded !== scene) return null;
+      const texture = new THREE.DataTexture(new Uint8Array(await res.arrayBuffer()), size.width, size.height);
+      // The rows are stored top first, which is where Direct3D texture coordinates start.
+      texture.flipY = false;
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.magFilter = THREE.LinearFilter;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.generateMipmaps = true;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = 4;
+      texture.needsUpdate = true;
+      if (this.loaded !== scene) {
+        texture.dispose();
+        return null;
+      }
+      this.textures.set(id, texture);
+      return texture;
+    } catch {
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------- overlays
+
+  private buildGrid(scene: LoadedScene): void {
+    const bounds = positionBounds(scene.transforms, meshNodeIndices(scene.graph));
+    if (!bounds) return;
+    const extent = Math.max(bounds.max[0] - bounds.min[0], bounds.max[2] - bounds.min[2], 100);
+    const step = 10 ** Math.ceil(Math.log10(extent / 50));
+    const size = Math.ceil(extent / step / 2) * 2 * step + 2 * step;
+    this.grid = new THREE.GridHelper(size, size / step, 0x555555, 0x333333);
+    this.grid.position.set((bounds.min[0] + bounds.max[0]) / 2, bounds.min[1], -(bounds.min[2] + bounds.max[2]) / 2);
+    this.grid.visible = this.state?.view.G ?? true;
+    this.scene.add(this.grid);
+  }
+
+  /** A dot for every node that has no model: lights, cameras, markers and plain groups. */
+  private buildMarkers(): void {
+    if (this.markers) {
+      this.world.remove(this.markers);
+      this.markers.geometry.dispose();
+      (this.markers.material as THREE.Material).dispose();
+      this.markers = null;
+    }
+    const scene = this.loaded;
+    if (!scene || !this.state?.view.P) return;
+    const positions: number[] = [];
+    const colors: number[] = [];
+    const palette = { light: [1, 0.9, 0.3], camera: [0.3, 0.9, 1], room: [0.6, 0.6, 1], group: [0.6, 0.6, 0.6], other: [0.9, 0.5, 0.9], mesh: [1, 1, 1] };
+    for (const node of scene.graph.nodes) {
+      if (node.meshRoot || node.kind === 'group' || node.kind === 'room') continue;
+      const o = node.index * TRANSFORM;
+      positions.push(scene.transforms[o + 9]!, scene.transforms[o + 10]!, scene.transforms[o + 11]!);
+      colors.push(...palette[node.kind]);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    this.markers = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 6, sizeAttenuation: false, vertexColors: true }));
+    this.world.add(this.markers);
+  }
+
+  private clearOverlays(): void {
+    for (const child of [...this.overlays.children]) {
+      this.overlays.remove(child);
+      if (child instanceof THREE.LineSegments) {
+        child.geometry.dispose();
+        (child.material as THREE.Material).dispose();
+      }
+    }
+  }
+
+  /** A box around each selected node's models, or a small cross where it has none. */
+  private buildHighlights(): void {
+    this.clearOverlays();
+    const scene = this.loaded;
+    const state = this.state;
+    if (!scene || !state) return;
+    const m = new THREE.Matrix4();
+    for (const index of state.sel.slice(0, MAX_HIGHLIGHTS)) {
+      nodeMatrix(scene.transforms, index, m);
+      const entries = this.instancesByNode.get(index);
+      if (entries?.length) {
+        const box = new THREE.Box3();
+        for (const { mesh } of entries) {
+          if (mesh.visible && mesh.geometry.boundingBox) box.union(mesh.geometry.boundingBox);
+        }
+        if (box.isEmpty()) continue;
+        // Box3Helper would place itself from the box and drop the node transform, so build the edges here.
+        const size = box.getSize(new THREE.Vector3());
+        const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z));
+        edges.translate(...box.getCenter(new THREE.Vector3()).toArray());
+        const outline = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffe040, depthTest: false }));
+        outline.renderOrder = 1;
+        outline.matrixAutoUpdate = false;
+        outline.matrix.copy(m);
+        this.overlays.add(outline);
+      } else {
+        const size = Math.max(10, state.cam.dist * 0.01);
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute([-size, 0, 0, size, 0, 0, 0, -size, 0, 0, size, 0, 0, 0, -size, 0, 0, size], 3),
+        );
+        const cross = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0xffe040, depthTest: false }));
+        cross.matrixAutoUpdate = false;
+        cross.matrix.copy(m);
+        this.overlays.add(cross);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- camera, fog, size
 
   private applyCamera(cam: CameraState): void {
     const { eye } = cameraBasis(cam);
     this.camera.position.set(eye.x, eye.y, -eye.z);
+    this.camera.near = Math.max(0.5, cam.dist * 0.002);
+    this.camera.far = Math.max(cam.dist * 50, 100_000);
+    this.camera.updateProjectionMatrix();
     this.camera.lookAt(cam.tx, cam.ty, -cam.tz);
-    this.camera.updateMatrixWorld();
   }
 
-  private sync(st: EditorState): void {
-    const view = st.view;
-    const index = sceneIndex(st.objects);
-
-    const highlighted = new Set<string>();
-    for (const id of st.sel) {
-      highlighted.add(id);
-      for (const d of descendantIds(index, id)) highlighted.add(d);
-    }
-
-    for (const { obj, group, mesh, edges, points } of this.boxes) {
-      const selected = highlighted.has(obj.id);
-      group.visible = isVisible(index, obj);
-      mesh.visible = !view.W;
-      edges.visible = view.W || selected;
-      edges.material.color.set(selected ? WHITE : (obj.wire ?? DEFAULT_WIRE));
-      points.visible = view.P;
-      points.material.color.set(selected ? WHITE : POINT_COLOR);
-    }
-
-    // Lit: the scene's own point lights over a dim ambient. Unlit: flat, direction-only shading.
-    this.ambient.intensity = Math.PI * (view.Li ? 0.1 : 0.55);
-    this.sun.intensity = view.Li ? 0 : Math.PI * 0.45;
-    for (const { obj, light } of this.lights) {
-      const on = view.Li && isVisible(index, obj) && obj.light;
-      light.intensity = on ? Math.PI * 0.3 * obj.light!.intensity * obj.light!.radius : 0;
-    }
-
-    this.scene.fog = view.F ? this.fog : null;
-    this.grid.visible = view.G;
-
-    const worldPos = new THREE.Vector3();
-    const pxToWorld = (distance: number) =>
-      (2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)) / this.size.y;
-
-    for (const { obj, gizmo } of this.lights) {
-      gizmo.visible = st.gizmoKind === 'Lights' && isVisible(index, obj);
-      gizmo.material.color.set(highlighted.has(obj.id) ? WHITE : LIGHT_GIZMO_COLOR);
-      gizmo.getWorldPosition(worldPos);
-      gizmo.scale.setScalar(LIGHT_GIZMO_PX * pxToWorld(worldPos.distanceTo(this.camera.position)));
-    }
-
-    this.syncTransformGizmo(st);
+  private applyFog(): void {
+    const state = this.state;
+    this.scene.fog = state?.view.F ? new THREE.Fog(CLEAR_COLOR, state.cam.dist * 0.5, state.cam.dist * 4) : null;
   }
 
-  private syncTransformGizmo(st: EditorState): void {
-    const { root, tips } = this.transformGizmo;
-    const index = sceneIndex(st.objects);
-    const picked = st.sel.map((id) => index.byId.get(id)).filter((o): o is SceneObject => !!o);
-    root.visible = picked.length > 0;
-    if (!root.visible) return;
+  private resize(): void {
+    const { clientWidth: w, clientHeight: h } = this.host;
+    if (!w || !h) return;
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.needsRender = true;
+  }
 
-    const n = picked.length;
-    root.position.set(
-      picked.reduce((s, o) => s + o.pos.x, 0) / n,
-      picked.reduce((s, o) => s + o.pos.y, 0) / n,
-      picked.reduce((s, o) => s + o.pos.z, 0) / n,
+  private readonly tick = () => {
+    this.frame = requestAnimationFrame(this.tick);
+    if (!this.needsRender) return;
+    this.needsRender = false;
+    const start = performance.now();
+    this.renderer.render(this.scene, this.camera);
+    this.lastRenderMs = performance.now() - start;
+    const info = this.renderer.info.render;
+    const visible = this.parts.reduce((n, p) => n + (p.mesh.visible ? 1 : 0), 0);
+    this.callbacks.onStats(`${visible} parts · ${info.calls} draws · ${Math.round(info.triangles / 1000)}k tris · ${this.lastRenderMs.toFixed(1)} ms`);
+  };
+
+  // ---------------------------------------------------------------- pointer
+
+  private bindPointer(): void {
+    const el = this.renderer.domElement;
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    el.addEventListener('pointerdown', (e) => {
+      el.setPointerCapture(e.pointerId);
+      this.drag = { x: e.clientX, y: e.clientY, button: e.button, shift: e.shiftKey, moved: false };
+    });
+    el.addEventListener('pointermove', (e) => {
+      const drag = this.drag;
+      const cam = this.state?.cam;
+      if (!drag || !cam) return;
+      const dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      drag.moved = true;
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+      const panning = drag.button === 2 || drag.button === 1 || drag.shift;
+      this.callbacks.onCamera(panning ? pan(cam, dx, dy) : orbit(cam, dx, dy));
+    });
+    el.addEventListener('pointerup', (e) => {
+      const drag = this.drag;
+      this.drag = null;
+      if (drag && !drag.moved && drag.button === 0) this.pick(e);
+    });
+    el.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        const cam = this.state?.cam;
+        if (cam) this.callbacks.onCamera(zoom(cam, e.deltaY));
+      },
+      { passive: false },
     );
-    for (const mode of Object.keys(tips) as GizmoMode[]) tips[mode].visible = mode === st.gizmoMode;
-
-    // Editor2 draws the handles shorter up close, capped at 8 units further out.
-    const centre = root.getWorldPosition(new THREE.Vector3());
-    const distance = centre.distanceTo(this.camera.position);
-    root.scale.setScalar(Math.min(8, 0.254 * distance + 2));
   }
-
-  // ------------------------------------------------------------ input
-
-  private readonly onContextMenu = (e: Event) => e.preventDefault();
-
-  private readonly onPointerDown = (e: PointerEvent) => {
-    this.drag = { x: e.clientX, y: e.clientY, moved: 0, button: e.button, shift: e.shiftKey };
-    e.preventDefault();
-  };
-
-  private readonly onPointerMove = (e: PointerEvent) => {
-    const drag = this.drag;
-    if (!drag || !this.state) return;
-    const dx = e.clientX - drag.x;
-    const dy = e.clientY - drag.y;
-    drag.moved += Math.abs(dx) + Math.abs(dy);
-    drag.x = e.clientX;
-    drag.y = e.clientY;
-    const cam = this.state.cam;
-    this.callbacks.onCamera(drag.button === 2 || drag.shift ? pan(cam, dx, dy) : orbit(cam, dx, dy));
-  };
-
-  private readonly onPointerUp = (e: PointerEvent) => {
-    const drag = this.drag;
-    this.drag = null;
-    if (!drag || drag.moved > CLICK_SLOP || drag.button === 2) return;
-    this.pick(e);
-  };
-
-  private readonly onWheel = (e: WheelEvent) => {
-    e.preventDefault();
-    if (this.state) this.callbacks.onCamera(zoom(this.state.cam, e.deltaY));
-  };
 
   private pick(e: PointerEvent): void {
-    const st = this.state;
-    if (!st) return;
     const rect = this.renderer.domElement.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    if (mx < 0 || my < 0 || mx > rect.width || my > rect.height) return;
-
-    this.applyCamera(st.cam);
-    this.scene.updateMatrixWorld();
-    const index = sceneIndex(st.objects);
-
-    const ndc = new THREE.Vector2((mx / rect.width) * 2 - 1, -(my / rect.height) * 2 + 1);
-    this.raycaster.setFromCamera(ndc, this.camera);
-    const pickable = this.boxes
-      .filter((b) => !b.obj.frozen && isVisible(index, b.obj))
-      .map((b) => b.mesh);
-    const hit = this.raycaster.intersectObjects(pickable, false)[0];
-    let bestId: string | null = hit ? (hit.object.userData.id as string) : null;
-    let bestDistance = hit ? hit.distance : Infinity;
-
-    // Lights have no surface to hit, so they're picked by screen distance to their centre.
-    const p = new THREE.Vector3();
-    for (const { obj, gizmo } of this.lights) {
-      if (!isVisible(index, obj)) continue;
-      gizmo.getWorldPosition(p);
-      const distance = p.distanceTo(this.camera.position);
-      const s = p.clone().project(this.camera);
-      if (s.z < -1 || s.z > 1) continue;
-      const sx = ((s.x + 1) / 2) * rect.width;
-      const sy = ((1 - s.y) / 2) * rect.height;
-      if (Math.hypot(sx - mx, sy - my) < LIGHT_PICK_RADIUS_PX && distance < bestDistance + 6) {
-        bestId = obj.id;
-        bestDistance = distance;
-      }
+    const pointer = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(pointer, this.camera);
+    const targets = this.parts.filter((p) => p.mesh.visible).map((p) => p.mesh);
+    const byMesh = new Map(this.parts.map((p) => [p.mesh as THREE.Object3D, p]));
+    for (const hit of raycaster.intersectObjects(targets, false)) {
+      const entry = byMesh.get(hit.object);
+      const node = entry && hit.instanceId !== undefined ? entry.nodes[hit.instanceId] : undefined;
+      if (node === undefined || this.frozenNodes[node] || this.hiddenNodes[node]) continue;
+      this.callbacks.onPick(node, e.ctrlKey || e.metaKey);
+      return;
     }
-
-    this.callbacks.onPick(bestId, e.ctrlKey || e.metaKey);
-  }
-}
-
-// ------------------------------------------------------------ shared geometry
-
-function buildCornerGeometry(): THREE.BufferGeometry {
-  const corners: number[] = [];
-  for (const x of [-0.5, 0.5]) for (const y of [-0.5, 0.5]) for (const z of [-0.5, 0.5]) corners.push(x, y, z);
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(corners, 3));
-  return geometry;
-}
-
-/** A unit cross through a small wire octahedron. */
-function buildLightGizmoGeometry(): THREE.BufferGeometry {
-  const octahedron = new THREE.OctahedronGeometry(0.45);
-  const edges = new THREE.EdgesGeometry(octahedron);
-  const positions = [...(edges.getAttribute('position').array as Float32Array)];
-  positions.push(-1, 0, 0, 1, 0, 0, 0, -1, 0, 0, 1, 0, 0, 0, -1, 0, 0, 1);
-  octahedron.dispose();
-  edges.dispose();
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  return geometry;
-}
-
-/** Unit-length axis handles with arrow, ball or cube tips for move, rotate and scale. */
-function buildTransformGizmo(): TransformGizmo {
-  const root = new THREE.Group();
-  const tips: Record<GizmoMode, THREE.Group> = {
-    move: new THREE.Group(),
-    rotate: new THREE.Group(),
-    scale: new THREE.Group(),
-  };
-  const cone = new THREE.ConeGeometry(0.07, 0.22, 12);
-  const ball = new THREE.SphereGeometry(0.06, 12, 8);
-  const cube = new THREE.BoxGeometry(0.11, 0.11, 0.11);
-  const disposables: { dispose(): void }[] = [cone, ball, cube];
-  const yAxis = new THREE.Vector3(0, 1, 0);
-
-  for (const [dir, color] of AXES) {
-    // Transparent + no depth test: drawn last, on top of the scene, like Editor2's overlay.
-    const lineMaterial = new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true });
-    const solidMaterial = new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true });
-    const lineGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), dir]);
-    disposables.push(lineMaterial, solidMaterial, lineGeometry);
-
-    const line = new THREE.Line(lineGeometry, lineMaterial);
-    line.renderOrder = 10;
-    root.add(line);
-
-    const orientation = new THREE.Quaternion().setFromUnitVectors(yAxis, dir);
-    const addTip = (group: THREE.Group, geometry: THREE.BufferGeometry) => {
-      const tip = new THREE.Mesh(geometry, solidMaterial);
-      tip.position.copy(dir);
-      tip.quaternion.copy(orientation);
-      tip.renderOrder = 10;
-      group.add(tip);
-    };
-    addTip(tips.move, cone);
-    addTip(tips.rotate, ball);
-    addTip(tips.scale, cube);
+    this.callbacks.onPick(null, false);
   }
 
-  root.add(tips.move, tips.rotate, tips.scale);
-  return { root, tips, dispose: () => disposables.forEach((d) => d.dispose()) };
+  dispose(): void {
+    cancelAnimationFrame(this.frame);
+    this.load?.cancel();
+    this.resizeObserver.disconnect();
+    this.clearModels();
+    this.renderer.dispose();
+    this.renderer.domElement.remove();
+  }
 }

@@ -1,41 +1,51 @@
-import { editObjects } from '../commands/sceneEdit';
-import { childrenOf, descendantIds, isDefined, sceneIndex } from '../scene/sceneIndex';
-import { ROOT_ID, type Vec3 } from '../scene/types';
-import {
-  DEFAULT_CAMERA,
-  VIEW_FLAG_TITLES,
-  useEditor,
-  type CameraState,
-  type ViewFlag,
-} from './store';
+import type { HiddenReasonDTO } from '@hbm/protocol';
+import { meshNodeIndices, positionBounds } from '../scene/sceneModel';
+import { frame } from '../viewport/camera';
+import { DEFAULT_CAMERA, VIEW_FLAG_TITLES, useEditor, type CameraState, type DialogName, type Tab, type ViewFlag } from './store';
 
 const store = () => useEditor.getState();
-
-/** The property grid shows positions and sizes ×10, as the original editor did. */
-export const DISPLAY_SCALE = 10;
-
-export function formatNumber(n: number): string {
-  return String(Math.round(n * 1000) / 1000);
-}
-
-export function formatVec(v: Vec3): string {
-  return [v.x, v.y, v.z].map((n) => formatNumber(n * DISPLAY_SCALE)).join(', ');
-}
 
 export function setStatus(msg: string): void {
   store().status(msg);
 }
 
+export function formatNumber(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(Number(n.toPrecision(6)));
+}
+
+// ---------------------------------------------------------------- dialogs and tabs
+
+export function openDialog(dialog: DialogName | null): void {
+  store().update((s) => {
+    s.dialog = dialog;
+    s.menuOpen = null;
+  });
+}
+
+export function setTab(tab: Tab): void {
+  store().update((s) => {
+    s.tab = tab;
+  });
+}
+
 // ---------------------------------------------------------------- selection
 
-export function selectObject(id: string, additive: boolean): void {
-  const { sel, objects, update } = store();
-  const obj = sceneIndex(objects).byId.get(id);
-  if (!obj) return;
-  const next = additive ? (sel.includes(id) ? sel.filter((s) => s !== id) : [...sel, id]) : [id];
-  update((s) => {
+/** Open every ancestor of a node so its outliner row exists. */
+function expandAncestors(s: { scene: { graph: { nodes: { parent: number }[] } } | null; expanded: Record<number, boolean> }, index: number) {
+  const nodes = s.scene?.graph.nodes;
+  if (!nodes) return;
+  for (let p = nodes[index]?.parent ?? -1; p >= 0; p = nodes[p]!.parent) s.expanded[p] = true;
+}
+
+export function selectNode(index: number, additive: boolean, reveal = false): void {
+  const { scene, sel } = store();
+  const node = scene?.graph.nodes[index];
+  if (!node) return;
+  const next = additive ? (sel.includes(index) ? sel.filter((i) => i !== index) : [...sel, index]) : [index];
+  store().update((s) => {
     s.sel = next;
-    s.statusMsg = `Selected ${obj.name}`;
+    if (reveal) expandAncestors(s, index);
+    s.statusMsg = `Selected ${node.name || node.className || `node ${index}`}`;
   });
 }
 
@@ -48,7 +58,7 @@ export function clearSelection(message = 'Select none'): void {
 
 export function selectAll(): void {
   store().update((s) => {
-    s.sel = s.objects.filter((o) => o.id !== ROOT_ID).map((o) => o.id);
+    s.sel = s.scene ? s.scene.graph.nodes.map((n) => n.index) : [];
     s.statusMsg = 'Select all';
   });
 }
@@ -56,33 +66,34 @@ export function selectAll(): void {
 export function invertSelection(): void {
   store().update((s) => {
     const current = new Set(s.sel);
-    s.sel = s.objects.filter((o) => o.id !== ROOT_ID && !current.has(o.id)).map((o) => o.id);
+    s.sel = s.scene ? s.scene.graph.nodes.map((n) => n.index).filter((i) => !current.has(i)) : [];
     s.statusMsg = 'Invert selection';
   });
 }
 
 /** Select the row after the current selection, in outliner order. */
-export function selectNext(orderedIds: readonly string[]): void {
-  if (!orderedIds.length) return;
-  const i = orderedIds.indexOf(store().sel[0] ?? '');
-  selectObject(orderedIds[(i + 1) % orderedIds.length]!, false);
+export function selectNext(orderedIndices: readonly number[]): void {
+  if (!orderedIndices.length) return;
+  const i = orderedIndices.indexOf(store().sel[0] ?? -1);
+  selectNode(orderedIndices[(i + 1) % orderedIndices.length]!, false);
 }
 
-export function pickFromViewport(hitId: string | null, additive: boolean): void {
-  if (!hitId) {
+export function pickFromViewport(index: number | null, additive: boolean): void {
+  if (index === null) {
     clearSelection('Selection cleared');
     return;
   }
-  const { objects, selMode } = store();
-  const index = sceneIndex(objects);
-  let obj = index.byId.get(hitId);
+  const { scene, selMode } = store();
+  const nodes = scene?.graph.nodes;
+  if (!nodes?.[index]) return;
+  let picked = index;
   if (selMode === 'Group') {
-    // Climb to the outermost group in an unbroken chain of groups.
-    for (let parent = obj && index.byId.get(obj.parent); parent?.cls === 'ZGROUP'; parent = index.byId.get(parent.parent)) {
-      obj = parent;
+    // Climb to the outermost group or room in an unbroken chain of them.
+    for (let p = nodes[picked]!.parent; p >= 0 && (nodes[p]!.kind === 'group' || nodes[p]!.kind === 'room'); p = nodes[p]!.parent) {
+      picked = p;
     }
   }
-  if (obj) selectObject(obj.id, additive);
+  selectNode(picked, additive, true);
 }
 
 // ---------------------------------------------------------------- camera and view
@@ -93,30 +104,23 @@ export function setCamera(cam: CameraState): void {
   });
 }
 
-export function resetCamera(message: string): void {
+/** Frame the whole scene. */
+export function zoomExtents(): void {
+  const { scene, cam } = store();
+  if (!scene) return;
+  const bounds = positionBounds(scene.transforms, meshNodeIndices(scene.graph));
   store().update((s) => {
-    s.cam = { ...DEFAULT_CAMERA };
-    s.statusMsg = message;
+    s.cam = bounds ? frame(cam, bounds) : { ...DEFAULT_CAMERA };
+    s.statusMsg = 'Zoom extents: all';
   });
 }
 
 export function zoomSelected(): void {
-  const { sel, objects, update } = store();
-  const index = sceneIndex(objects);
-  const picked = sel.map((id) => index.byId.get(id)).filter(isDefined);
-  if (!picked.length) {
-    setStatus('Nothing selected');
-    return;
-  }
-  const n = picked.length;
-  const centre = picked.reduce((c, o) => ({ x: c.x + o.pos.x / n, y: c.y + o.pos.y / n, z: c.z + o.pos.z / n }), {
-    x: 0,
-    y: 0,
-    z: 0,
-  });
-  const span = picked.reduce((m, o) => Math.max(m, o.size ? Math.max(o.size.x, o.size.y, o.size.z) : 4), 4);
-  update((s) => {
-    s.cam = { ...s.cam, tx: centre.x, ty: centre.y, tz: centre.z, dist: Math.max(8, span * 4) };
+  const { scene, sel, cam } = store();
+  const bounds = scene && positionBounds(scene.transforms, sel);
+  if (!bounds) return setStatus('Nothing selected');
+  store().update((s) => {
+    s.cam = frame(cam, bounds, 300);
     s.statusMsg = 'Zoom to selection';
   });
 }
@@ -133,12 +137,11 @@ export function toggleViewFlag(flag: ViewFlag): void {
   store().update((s) => {
     const on = !s.view[flag];
     s.view[flag] = on;
+    if (flag === 'K') s.filters.show.collision = on;
     const preset = VIEW_PRESETS[flag];
     if (preset && on) {
       s.cam = { ...s.cam, ...preset };
-      for (const other of ['T', 'B', 'L', 'R'] as const) {
-        if (other !== flag) s.view[other] = false;
-      }
+      for (const other of ['T', 'B', 'L', 'R'] as const) if (other !== flag) s.view[other] = false;
       s.statusMsg = `${title} view`;
       return;
     }
@@ -146,176 +149,99 @@ export function toggleViewFlag(flag: ViewFlag): void {
   });
 }
 
+export function setLod(level: number): void {
+  store().update((s) => {
+    s.filters.lod = level;
+    s.statusMsg = `Showing LOD ${level}`;
+  });
+}
+
+const REASON_TITLES: Record<HiddenReasonDTO, string> = {
+  collision: 'Collision geometry',
+  bounds: 'Bounds and trigger volumes',
+  shadow: 'Shadow geometry',
+  placeholder: 'Placeholder geometry',
+  helper: 'Helper geometry',
+};
+
+export function toggleShown(reason: HiddenReasonDTO): void {
+  store().update((s) => {
+    const on = !s.filters.show[reason];
+    s.filters.show[reason] = on;
+    if (reason === 'collision') s.view.K = on;
+    s.statusMsg = `${REASON_TITLES[reason]} ${on ? 'shown' : 'hidden'}`;
+  });
+}
+
 // ---------------------------------------------------------------- outliner
 
-export function toggleExpanded(id: string): void {
+export function toggleExpanded(index: number): void {
   store().update((s) => {
-    if (s.collapsed[id]) delete s.collapsed[id];
-    else s.collapsed[id] = true;
+    if (s.expanded[index]) delete s.expanded[index];
+    else s.expanded[index] = true;
   });
 }
 
 export function setAllExpanded(expanded: boolean): void {
-  const index = sceneIndex(store().objects);
   store().update((s) => {
-    s.collapsed = {};
-    if (!expanded) {
-      for (const o of s.objects) {
-        if (o.id !== ROOT_ID && childrenOf(index, o.id).length) s.collapsed[o.id] = true;
-      }
+    s.expanded = {};
+    if (expanded && s.scene) {
+      for (const node of s.scene.graph.nodes) if (s.scene.children[node.index + 1]!.length) s.expanded[node.index] = true;
     }
     s.statusMsg = expanded ? 'Expand all' : 'Collapse all';
   });
 }
 
-// ---------------------------------------------------------------- undoable edits
+// ---------------------------------------------------------------- undoable editor state
 
-export function toggleHideSelection(): void {
-  const ids = new Set(store().sel);
-  if (!ids.size) return setStatus('Nothing selected');
-  editObjects(`Toggle hide (${ids.size})`, (objects) => {
-    for (const o of objects) if (ids.has(o.id)) o.hidden = !o.hidden;
+function toggleNodeFlag(key: 'hidden' | 'frozen', verb: string): void {
+  const { sel } = store();
+  if (!sel.length) return setStatus('Nothing selected');
+  const flags = store()[key];
+  const before = new Map(sel.map((i) => [i, !!flags[i]]));
+  const turnOn = !sel.every((i) => flags[i]);
+  store().run({
+    label: `${turnOn ? verb : `Un${verb.toLowerCase()}`} ${sel.length} object(s)`,
+    apply: (s) => {
+      for (const i of before.keys()) {
+        if (turnOn) s[key][i] = true;
+        else delete s[key][i];
+      }
+    },
+    revert: (s) => {
+      for (const [i, was] of before) {
+        if (was) s[key][i] = true;
+        else delete s[key][i];
+      }
+    },
   });
 }
 
-export function toggleFreezeSelection(): void {
-  const ids = new Set(store().sel);
-  if (!ids.size) return setStatus('Nothing selected');
-  editObjects(`Toggle freeze (${ids.size})`, (objects) => {
-    for (const o of objects) if (ids.has(o.id)) o.frozen = !o.frozen;
-  });
-}
-
-export function renameObject(id: string, name: string): boolean {
-  const trimmed = name.trim();
-  if (!trimmed) {
-    setStatus("A name can't be empty");
-    return false;
-  }
-  editObjects(`Rename to ${trimmed}`, (objects) => {
-    const o = objects.find((x) => x.id === id);
-    if (o) o.name = trimmed;
-  });
-  return true;
-}
-
-export function setPositionFromText(id: string, text: string): boolean {
-  const parts = text.split(',').map((p) => Number.parseFloat(p));
-  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
-    setStatus('Position needs three numbers: x, y, z');
-    return false;
-  }
-  const [x, y, z] = parts.map((n) => n / DISPLAY_SCALE) as [number, number, number];
-  editObjects('Move', (objects) => {
-    const o = objects.find((obj) => obj.id === id);
-    if (o && (o.pos.x !== x || o.pos.y !== y || o.pos.z !== z)) o.pos = { x, y, z };
-  });
-  return true;
-}
-
-export function setLightValue(id: string, key: 'intensity' | 'radius', text: string): boolean {
-  const value = Number.parseFloat(text);
-  if (Number.isNaN(value)) {
-    setStatus(`Light ${key} needs a number`);
-    return false;
-  }
-  const clamped = key === 'intensity' ? Math.max(0, value) : Math.max(0.5, value);
-  editObjects(`Light ${key}`, (objects) => {
-    const light = objects.find((o) => o.id === id)?.light;
-    if (light) light[key] = clamped;
-  });
-  return true;
-}
-
-export function setBoundingBox(id: string, value: string): void {
-  editObjects(`BoundingBox ${value}`, (objects) => {
-    const o = objects.find((x) => x.id === id);
-    if (o) o.frozen = value === 'FROZEN';
-  });
-}
-
-export function toggleInactive(id: string): void {
-  editObjects('bInactive', (objects) => {
-    const o = objects.find((x) => x.id === id);
-    if (o) o.inactive = !o.inactive;
-  });
-}
-
-export function deleteSelection(): void {
-  const { sel, objects } = store();
-  const ids = sel.filter((id) => id !== ROOT_ID);
-  if (!ids.length) return setStatus('Nothing selected');
-  const index = sceneIndex(objects);
-  const doomed = new Set<string>();
-  for (const id of ids) {
-    doomed.add(id);
-    for (const d of descendantIds(index, id)) doomed.add(d);
-  }
-  editObjects(`Delete ${doomed.size} object(s)`, (list) => {
-    for (let i = list.length - 1; i >= 0; i--) {
-      if (doomed.has(list[i]!.id)) list.splice(i, 1);
-    }
-  });
-}
-
-export function groupSelection(): void {
-  const { sel, objects, update } = store();
-  const ids = sel.filter((id) => id !== ROOT_ID);
-  if (ids.length < 2) return setStatus('Select at least two objects to group');
-  const index = sceneIndex(objects);
-  const first = index.byId.get(ids[0]!);
-  if (!first) return;
-
-  // Grouping an object together with one of its own ancestors would detach that subtree.
-  const selected = new Set(ids);
-  const nested = ids.some((id) => {
-    for (let p = index.byId.get(id)?.parent; p; p = index.byId.get(p)?.parent) {
-      if (selected.has(p)) return true;
-    }
-    return false;
-  });
-  if (nested) return setStatus("Can't group an object together with one of its parents");
-
-  const groupId = `group-${Date.now()}`;
-  const changed = editObjects(`Group ${ids.length} object(s)`, (list) => {
-    for (const o of list) if (selected.has(o.id)) o.parent = groupId;
-    list.push({
-      id: groupId,
-      name: `NewGroup_${objects.length}`,
-      cls: 'ZGROUP',
-      parent: first.parent,
-      pos: { ...first.pos },
-      size: null,
-      tint: '#888888',
-      wire: null,
-      light: null,
-      hidden: false,
-      frozen: false,
-      inactive: false,
-    });
-  });
-  if (changed) {
-    update((s) => {
-      s.sel = [groupId];
-    });
-  }
-}
+export const toggleHideSelection = () => toggleNodeFlag('hidden', 'Hide');
+export const toggleFreezeSelection = () => toggleNodeFlag('frozen', 'Freeze');
 
 // ---------------------------------------------------------------- menus
 
-const UNAVAILABLE_MESSAGES: Record<string, string> = {
-  'Open Scene…': 'Opening game scenes arrives in M1. This is the mock scene.',
-  'Save Scene': "Saving scenes isn't supported yet. Mock scene edits stay in memory.",
+const MESSAGES: Record<string, string> = {
   Exit: 'Close this tab and the launcher window to exit.',
+  About: 'Hitman: Blood Money Editor · reads your game files through the local server',
 };
 
 export function runMenuCommand(name: string): void {
   const s = store();
   switch (name) {
+    case 'Choose Game…':
+      return openDialog('gamePicker');
+    case 'Open Scene…':
+      return openDialog('sceneOpen');
     case 'Undo':
       return s.undo();
     case 'Redo':
       return s.redo();
+    case 'Hide Selection':
+      return toggleHideSelection();
+    case 'Freeze Selection':
+      return toggleFreezeSelection();
     case 'Wireframe':
       return toggleViewFlag('W');
     case 'Lighting':
@@ -325,12 +251,16 @@ export function runMenuCommand(name: string): void {
     case 'Grid':
       return toggleViewFlag('G');
     case 'Zoom Extents':
-      return resetCamera('Zoom extents: all');
-    case 'Delete Selection':
-      return deleteSelection();
-    case 'Group Selection':
-      return groupSelection();
+      return zoomExtents();
+    case 'Zoom Selected':
+      return zoomSelected();
+    case 'Scene View':
+      return setTab('scene');
+    case 'Texture Browser':
+      return setTab('textures');
+    case 'Localisation Browser':
+      return setTab('localisation');
     default:
-      setStatus(UNAVAILABLE_MESSAGES[name] ?? `${name.replace(/…$/, '')} isn't available yet`);
+      setStatus(MESSAGES[name] ?? `${name.replace(/…$/, '')} isn't available yet`);
   }
 }

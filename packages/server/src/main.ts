@@ -35,6 +35,7 @@ async function main(): Promise<void> {
       port: { type: 'string', default: '4757' },
       host: { type: 'string', default: '127.0.0.1' },
       game: { type: 'string' },
+      data: { type: 'string' },
       'no-open': { type: 'boolean', default: false },
       dev: { type: 'boolean', default: false },
     },
@@ -58,7 +59,7 @@ async function main(): Promise<void> {
 
   let app;
   try {
-    app = await buildApp({ port, token: newSessionToken(), staticDir, game: values.game });
+    app = await buildApp({ port, token: newSessionToken(), staticDir, game: values.game, dataDir: values.data });
   } catch (err) {
     if (err instanceof HttpError) fail(err.message);
     throw err;

@@ -1,82 +1,56 @@
-import { childrenOf, sceneIndex } from '../../scene/sceneIndex';
-import { ROOT_ID, type ObjectClass, type SceneObject } from '../../scene/types';
+import type { SceneNodeDTO } from '@hbm/protocol';
+import { nodeLabel } from '../../scene/sceneModel';
 
 export interface TreeRow {
-  id: string;
-  name: string;
+  index: number;
+  label: string;
   depth: number;
+  kind: SceneNodeDTO['kind'];
   hasChildren: boolean;
   expanded: boolean;
-  cls: ObjectClass;
-  hidden: boolean;
-  frozen: boolean;
-  selected: boolean;
-  isRoot: boolean;
+}
+
+export interface TreeInput {
+  nodes: readonly SceneNodeDTO[];
+  /** Child indices by parent index + 1. */
+  children: readonly (readonly number[])[];
+  expanded: Readonly<Record<number, boolean>>;
+  search: string;
+  sorting: 'Alpha' | 'None';
 }
 
 /**
- * The outliner's visible rows, in display order. With a search, only objects whose name or
- * subtree matches are listed, and groups are opened so every match is reachable.
+ * The outliner's visible rows, in display order. With a search, only nodes whose name or subtree
+ * matches are listed, and every ancestor of a match is opened.
  */
-export function buildTreeRows(
-  objects: readonly SceneObject[],
-  sel: readonly string[],
-  collapsed: Readonly<Record<string, boolean>>,
-  search: string,
-  sorting: 'Alpha' | 'None',
-): TreeRow[] {
-  const index = sceneIndex(objects);
+export function buildTreeRows({ nodes, children, expanded, search, sorting }: TreeInput): TreeRow[] {
   const query = search.trim().toLowerCase();
-  const selected = new Set(sel);
+  const labels = nodes.map(nodeLabel);
 
-  const subtreeMatch = new Map<string, boolean>();
-  const matches = (o: SceneObject): boolean => {
-    const cached = subtreeMatch.get(o.id);
-    if (cached !== undefined) return cached;
-    const hit =
-      o.name.toLowerCase().includes(query) || childrenOf(index, o.id).some((c) => matches(c));
-    subtreeMatch.set(o.id, hit);
-    return hit;
-  };
+  // Nodes are pre-order, so walking backwards decides every child before its parent.
+  let matches: Uint8Array | null = null;
+  if (query) {
+    matches = new Uint8Array(nodes.length);
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const node = nodes[i]!;
+      if (!matches[i] && (labels[i]!.toLowerCase().includes(query) || node.name.toLowerCase().includes(query))) matches[i] = 1;
+      if (matches[i] && node.parent >= 0) matches[node.parent] = 1;
+    }
+  }
 
-  const rows: TreeRow[] = [
-    {
-      id: ROOT_ID,
-      name: index.byId.get(ROOT_ID)?.name ?? 'Objects',
-      depth: 0,
-      hasChildren: true,
-      expanded: true,
-      cls: '',
-      hidden: false,
-      frozen: false,
-      selected: false,
-      isRoot: true,
-    },
-  ];
-
-  const walk = (parentId: string, depth: number) => {
-    let kids = childrenOf(index, parentId);
-    if (sorting === 'Alpha') kids = [...kids].sort((a, b) => a.name.localeCompare(b.name));
-    for (const o of kids) {
-      if (query && !matches(o)) continue;
-      const hasChildren = childrenOf(index, o.id).length > 0;
-      const expanded = !collapsed[o.id];
-      rows.push({
-        id: o.id,
-        name: o.name,
-        depth,
-        hasChildren,
-        expanded,
-        cls: o.cls,
-        hidden: o.hidden,
-        frozen: o.frozen,
-        selected: selected.has(o.id),
-        isRoot: false,
-      });
-      if (hasChildren && (expanded || query)) walk(o.id, depth + 1);
+  const rows: TreeRow[] = [];
+  const walk = (parent: number) => {
+    let kids = children[parent + 1] ?? [];
+    if (sorting === 'Alpha') kids = [...kids].sort((a, b) => labels[a]!.localeCompare(labels[b]!));
+    for (const index of kids) {
+      if (matches && !matches[index]) continue;
+      const node = nodes[index]!;
+      const hasChildren = (children[index + 1]?.length ?? 0) > 0;
+      const open = hasChildren && (!!expanded[index] || !!matches);
+      rows.push({ index, label: labels[index]!, depth: node.depth, kind: node.kind, hasChildren, expanded: open });
+      if (open) walk(index);
     }
   };
-  walk(ROOT_ID, 1);
-
+  walk(-1);
   return rows;
 }

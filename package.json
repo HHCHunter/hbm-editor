@@ -13,6 +13,7 @@
     "build": "pnpm --filter @hbm/editor build",
     "start": "pnpm --filter @hbm/server start",
     "test": "pnpm -r --if-present test",
+    "e2e": "pnpm build && pnpm --filter @hbm/editor e2e",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "eslint .",
     "sweep": "pnpm --filter @hbm/formats sweep && pnpm --filter @hbm/scene sweep",

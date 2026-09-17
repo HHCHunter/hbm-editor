@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { connect } from './api/client';
 import { MenuBar } from './components/chrome/MenuBar';
 import { StatusBar } from './components/chrome/StatusBar';
+import { TabStrip } from './components/chrome/TabStrip';
 import { TitleBar } from './components/chrome/TitleBar';
 import { SceneTree } from './components/outliner/SceneTree';
 import { HeaderFields } from './components/properties/HeaderFields';
@@ -9,23 +9,20 @@ import { PropertyGrid } from './components/properties/PropertyGrid';
 import { ToolRail } from './components/rail/ToolRail';
 import { Viewport } from './components/viewport/Viewport';
 import { useShortcuts } from './hooks/useShortcuts';
-import { setStatus } from './state/actions';
+import { GamePickerDialog } from './panels/GamePickerDialog';
+import { LocalisationBrowser } from './panels/LocalisationBrowser';
+import { SceneOpenDialog } from './panels/SceneOpenDialog';
+import { TextureBrowser } from './panels/TextureBrowser';
+import { startUp } from './state/sceneLoader';
+import { useEditor } from './state/store';
 
 export function App() {
   useShortcuts();
+  const tab = useEditor((s) => s.tab);
+  const dialog = useEditor((s) => s.dialog);
 
   useEffect(() => {
-    let cancelled = false;
-    connect()
-      .then((session) => {
-        if (!cancelled) setStatus(`Ready · local server v${session.version} · mock scene`);
-      })
-      .catch(() => {
-        if (!cancelled) setStatus('Local server not reachable. Start the editor with start.bat.');
-      });
-    return () => {
-      cancelled = true;
-    };
+    void startUp();
   }, []);
 
   return (
@@ -34,7 +31,15 @@ export function App() {
       <MenuBar />
       <div className="workspace">
         <ToolRail />
-        <Viewport />
+        <div className="centre">
+          <TabStrip />
+          {/* The viewport stays mounted so switching tabs keeps its models. */}
+          <div className="centre-page" hidden={tab !== 'scene'}>
+            <Viewport />
+          </div>
+          {tab === 'textures' && <TextureBrowser />}
+          {tab === 'localisation' && <LocalisationBrowser />}
+        </div>
         <div className="right-col">
           <SceneTree />
           <div className="props-area">
@@ -44,6 +49,8 @@ export function App() {
         </div>
       </div>
       <StatusBar />
+      {dialog === 'gamePicker' && <GamePickerDialog />}
+      {dialog === 'sceneOpen' && <SceneOpenDialog />}
     </div>
   );
 }

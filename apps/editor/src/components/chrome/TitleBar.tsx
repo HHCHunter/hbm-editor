@@ -1,15 +1,14 @@
 import { useEditor } from '../../state/store';
 
 export function TitleBar() {
-  const scenePath = useEditor((s) => s.scenePath);
-  const dirty = useEditor((s) => s.dirty);
+  const sceneId = useEditor((s) => s.scene?.id ?? s.loadingScene);
+  const gameRoot = useEditor((s) => s.config?.gameRoot);
 
   return (
     <div className="titlebar">
       <div className="titlebar-icon">E</div>
       <div className="titlebar-text">
-        Editor2 - {scenePath}
-        {dirty ? ' *' : ''}
+        Editor2 - {sceneId ? `Scenes\\${sceneId.replace(/\//g, '\\')}.ZIP` : (gameRoot ?? 'no game chosen')}
       </div>
       {/* Window buttons are part of the Editor2 look; a browser tab has nothing for them to do. */}
       <div className="titlebar-buttons" aria-hidden="true">

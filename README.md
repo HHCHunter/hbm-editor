@@ -16,13 +16,20 @@ you chose, are kept separately in the `data` folder, so a reinstall doesn't lose
 
 ## Status
 
-The Editor2 interface runs against a built-in mock scene, with a three.js viewport, outliner,
-property grid and undo (M0).
+The viewer is done (M1). On first run the editor asks where the game is installed, then lists
+its scenes. An open scene shows:
 
-The game file readers are done (M1a–b): scene archives, localisation, scene properties, geoms and
-placements, textures, meshes and materials, joined into a scene graph with mesh parts and surfaces.
-They're written from the HitmanBloodMoneyRecompilation project's reimplemented engine code and
-format documentation. Serving real scenes to the interface comes next (M1c–d).
+- a three.js viewport of the level, textured and instanced, with toggles for collision, bounds,
+  shadow, helper and placeholder geometry and a choice of LOD
+- the outliner, and a property grid with each object's transform, GMS record, materials and
+  scene properties
+- texture and localisation browsers
+
+Hiding and freezing objects are editor-only and undoable; nothing is written to the game yet.
+Safe edits (texture replacement and localisation text, into a mod folder) come next (M2).
+
+The readers are written from the HitmanBloodMoneyRecompilation project's reimplemented engine
+code and format documentation.
 
 To check the readers against your own install (PowerShell):
 
@@ -40,6 +47,7 @@ administrator prompt).
 ```
 pnpm dev         # Vite with hot reload plus the API server, at http://127.0.0.1:5173
 pnpm test        # unit tests
+pnpm e2e         # builds, then drives the editor in Edge against a generated game
 pnpm typecheck
 pnpm lint
 ```
