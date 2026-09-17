@@ -1,0 +1,99 @@
+/*
+ * Design tokens. The palette is Editor2's Windows 2000 look; sizes are in rem so the UI scale
+ * setting (html font-size, see base.css) enlarges everything together. Hairlines and bevels stay
+ * in px so they remain crisp at any scale.
+ */
+
+:root {
+  /* ---- palette */
+  --face: #d4d0c8;
+  --face-hover: #e2dfd8;
+  --face-dark: #c0bcb4;
+  --face-light: #e9e7e2;
+  --hilite: #ffffff;
+  --shadow: #808080;
+  --dk-shadow: #404040;
+  --rule: #9a968e;
+  --rule-light: #c4c0b8;
+  --navy: #0a246a;
+  --navy-light: #3a6ea5;
+  --sel-row: #b6c4dc;
+  --pressed: #b8ac90;
+  --pressed-dark: #6a5a34;
+  --pressed-light: #efe8d4;
+
+  /* ---- semantic colours */
+  --c-surface: var(--face);
+  --c-surface-raised: var(--face-light);
+  --c-field: #ffffff;
+  --c-field-readonly: #f4f3f0;
+  --c-text: #000000;
+  /* 5.9:1 on the face colour, 8.6:1 on white. */
+  --c-text-muted: #4a4a4a;
+  --c-text-disabled: #7a7770;
+  --c-text-inverse: #ffffff;
+  --c-accent: var(--navy);
+  --c-selection: var(--navy);
+  --c-selection-text: #ffffff;
+  --c-selection-inactive: var(--sel-row);
+  --c-hover: #e3e9f3;
+  --c-focus: var(--navy);
+  --c-link: #0a3a9a;
+  --c-danger: #a00000;
+  --c-danger-surface: #f6dede;
+  --c-warning: #7a4a00;
+  --c-warning-surface: #f7ebcf;
+  --c-success: #0b5d0b;
+  --c-success-surface: #dcefd8;
+  --c-info-surface: #dde5f2;
+  --c-modified: #b04a00;
+  --c-backdrop: rgba(0, 0, 0, 0.3);
+  --c-viewport: #1c1c1c;
+
+  /* ---- type */
+  --font: Tahoma, 'Segoe UI', Verdana, Geneva, sans-serif;
+  --mono: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+  /* 11px: metadata, badges and key hints only. */
+  --text-sm: 0.6875rem;
+  /* 12px: body text, controls, rows. */
+  --text-md: 0.75rem;
+  /* 13px: panel and group headers. */
+  --text-lg: 0.8125rem;
+  /* 15px: dialog titles and empty-state headings. */
+  --text-title: 0.9375rem;
+
+  /* ---- spacing: 2, 4, 6, 8, 12, 16px at 100% */
+  --sp-1: 0.125rem;
+  --sp-2: 0.25rem;
+  --sp-3: 0.375rem;
+  --sp-4: 0.5rem;
+  --sp-5: 0.75rem;
+  --sp-6: 1rem;
+
+  /* ---- sizes */
+  --row: 1.375rem;
+  --control: 1.5rem;
+  --tool: 1.5rem;
+  --bar: 1.625rem;
+  --icon: 0.875rem;
+
+  /* ---- bevels, as inset shadows so they don't change layout */
+  --bevel-out: inset 1px 1px 0 var(--hilite), inset -1px -1px 0 var(--dk-shadow), inset -2px -2px 0 var(--shadow);
+  --bevel-out-thin: inset 1px 1px 0 var(--hilite), inset -1px -1px 0 var(--shadow);
+  --bevel-in: inset 1px 1px 0 var(--shadow), inset -1px -1px 0 var(--hilite), inset 2px 2px 0 var(--dk-shadow);
+  --bevel-in-thin: inset 1px 1px 0 var(--shadow), inset -1px -1px 0 var(--hilite);
+  --bevel-pressed: inset 1px 1px 0 var(--dk-shadow), inset -1px -1px 0 var(--hilite), inset 2px 2px 0 var(--shadow);
+  --popup-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+
+  /* ---- focus: navy outside, white inside, visible on grey, white and navy */
+  --focus-ring: 0 0 0 1px var(--hilite), 0 0 0 3px var(--c-focus);
+
+  --ui-scale: 1;
+}
+
+:root[data-density='compact'] {
+  --row: 1.25rem;
+  --control: 1.375rem;
+  --tool: 1.375rem;
+  --bar: 1.5rem;
+}
