@@ -177,7 +177,13 @@ export interface NodeDetailDTO {
   properties: PropertyTokenDTO[];
   /** Null when the executable couldn't be read for schemas. */
   schema: RecordSchemaDTO | null;
-  controllers: { name: string; properties: PropertyTokenDTO[]; schema: RecordSchemaDTO | null }[];
+  controllers: {
+    name: string;
+    properties: PropertyTokenDTO[];
+    schema: RecordSchemaDTO | null;
+    /** For ScriptC: the mission DLL script class its ScriptName matches, if any. */
+    scriptCreator: string | null;
+  }[];
 }
 
 export interface SurfaceDTO {
@@ -192,6 +198,35 @@ export interface SurfaceDTO {
   additive: boolean;
   doubleSided: boolean;
   hiddenReason: HiddenReasonDTO | null;
+}
+
+// ---------------------------------------------------------------- mission scripts
+
+export interface ScriptCreatorDTO {
+  name: string;
+  /** Base classes, nearest first. */
+  bases: string[];
+  /** Instance size in bytes. */
+  size: number;
+  /** Scene objects whose ScriptC asks for this script. */
+  users: number[];
+}
+
+export interface ScriptUserDTO {
+  node: number;
+  /** The ScriptC's ScriptName, e.g. "m11\\m11_bartenderassassin". */
+  scriptName: string;
+  /** The creator it names, matched by name; null when the mission DLL has none. */
+  creator: string | null;
+}
+
+export interface SceneScriptsDTO {
+  /** The scene's ScriptCModule, e.g. "M11". */
+  module: string | null;
+  /** The DLL file found for it under Scriptcs/_gamerelease. */
+  dll: string | null;
+  creators: ScriptCreatorDTO[];
+  users: ScriptUserDTO[];
 }
 
 // ---------------------------------------------------------------- textures

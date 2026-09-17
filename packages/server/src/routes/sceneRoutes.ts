@@ -4,6 +4,7 @@ import {
   decodeTexLevel,
   firstLevelWithData,
   readRecordTokens,
+  scriptCreatorKey,
   textureStages,
   TEX_FLAG_CUBEMAP,
   type PrpToken,
@@ -106,6 +107,14 @@ export function registerSceneRoutes(app: FastifyInstance, game: GameService): vo
       const tokens = (record: { start: number; end: number }) =>
         readRecordTokens(prp.data, prp.tree, record).map((t) => tokenDTO(t, prp.tree));
       const bound = prpNode && schemas ? bindNodeProperties(prp, index, node.className, schemas) : null;
+      const module = prp.tree.sceneProperties.find((p) => p.name === 'ScriptCModule')?.values[0];
+      const mission = typeof module === 'string' && module ? await game.missionScripts(module) : null;
+      const creatorFor = (i: number): string | null => {
+        const scriptName = bound?.controllers[i]?.bound?.properties[0]?.value;
+        if (prpNode?.controllers[i]?.name !== 'ScriptC' || typeof scriptName !== 'string' || !mission) return null;
+        const key = scriptCreatorKey(scriptName);
+        return mission.creators.find((c) => c.name.toLowerCase() === key)?.name ?? null;
+      };
       return {
         node,
         gms: {
@@ -127,6 +136,7 @@ export function registerSceneRoutes(app: FastifyInstance, game: GameService): vo
               name: c.name,
               properties: tokens(c.record),
               schema: bound?.controllers[i] ? schemaDTO(bound.controllers[i]!) : null,
+              scriptCreator: creatorFor(i),
             }))
           : [],
       };

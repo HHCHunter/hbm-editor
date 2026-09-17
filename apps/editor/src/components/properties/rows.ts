@@ -118,6 +118,7 @@ export function buildPropRows(
     const schema = controller.schema;
     if (schema?.className && !schema.mismatch) {
       rows.push({ kind: 'group', label: `${controller.name} (${schema.className})` });
+      if (controller.scriptCreator) rows.push({ kind: 'text', label: 'script class', value: controller.scriptCreator });
       rows.push(...schemaRows(schema, schema.className));
       if (!schema.properties.length && !schema.tailTokens) rows.push({ kind: 'text', label: 'properties', value: '(none in level files)' });
     } else {

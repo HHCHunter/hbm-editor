@@ -120,6 +120,7 @@ describe('scenes', () => {
         name: 'TimeOutDelete',
         properties: [expect.objectContaining({ kind: 'u32', value: 5 })],
         schema: { className: null, properties: [], tailTokens: 0, mismatch: null },
+        scriptCreator: null,
       },
     ]);
     expect((await get(scene('node', '&index=9'))).statusCode).toBe(404);
@@ -178,6 +179,12 @@ describe('localisation', () => {
 
   it('searches names and text', async () => {
     expect((await json<LocEntryDTO[]>(scene('loc/search', '&q=pick%20up'))).map((e) => e.path)).toEqual(['AllLevels/Actions/Pickup']);
+  });
+});
+
+describe('mission scripts', () => {
+  it('reports a scene without a script module or DLL as empty', async () => {
+    expect(await json(scene('scripts'))).toEqual({ module: null, dll: null, creators: [], users: [] });
   });
 });
 

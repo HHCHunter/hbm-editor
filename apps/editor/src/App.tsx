@@ -12,6 +12,7 @@ import { useShortcuts } from './hooks/useShortcuts';
 import { GamePickerDialog } from './panels/GamePickerDialog';
 import { LocalisationBrowser } from './panels/LocalisationBrowser';
 import { SceneOpenDialog } from './panels/SceneOpenDialog';
+import { ScriptBrowser } from './panels/ScriptBrowser';
 import { TextureBrowser } from './panels/TextureBrowser';
 import { startUp } from './state/sceneLoader';
 import { useEditor } from './state/store';
@@ -39,6 +40,7 @@ export function App() {
           </div>
           {tab === 'textures' && <TextureBrowser />}
           {tab === 'localisation' && <LocalisationBrowser />}
+          {tab === 'scripts' && <ScriptBrowser />}
         </div>
         <div className="right-col">
           <SceneTree />

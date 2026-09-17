@@ -68,6 +68,7 @@ export {
 export { findControllerClasses, namesAgree, type ControllerClass } from './rtp/factories';
 export { resolveSchemas, type ClassSchema, type SchemaLevel, type SchemaRegistry } from './rtp/schemas';
 export { bindRecord, type BoundProperty, type BoundRecord, type BoundValue } from './rtp/bindRecord';
+export { SCRIPTS_EXPORT_ORDINAL, readScriptCreators, scriptCreatorKey, type ScriptCreator } from './scripts/missionDll';
 export {
   HARVESTED_REGISTRATIONS,
   geomFamily,

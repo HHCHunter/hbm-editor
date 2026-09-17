@@ -6,6 +6,7 @@ import type {
   NodeDetailDTO,
   SceneGraphDTO,
   SceneListItemDTO,
+  SceneScriptsDTO,
   SurfaceDTO,
   TextureDTO,
 } from '@hbm/protocol';
@@ -44,6 +45,8 @@ export const listTextures = (scene: string) => getJson<TextureDTO[]>(sceneUrl('t
 export const textureUrl = (scene: string, id: number, level?: number) => sceneUrl('texture', scene, { id, level, as: 'png' });
 /** Raw R, G, B, A bytes, rows top first. */
 export const textureRgbaUrl = (scene: string, id: number, level: number) => sceneUrl('texture', scene, { id, level, as: 'rgba' });
+
+export const getSceneScripts = (scene: string) => getJson<SceneScriptsDTO>(sceneUrl('scripts', scene));
 
 export const locChildren = (scene: string, path: string) => getJson<LocEntryDTO[]>(sceneUrl('loc/children', scene, { path }));
 export const locLookup = (scene: string, path: string) => getJson<LocLookupDTO>(sceneUrl('loc/lookup', scene, { path }));

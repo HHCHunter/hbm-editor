@@ -1263,3 +1263,39 @@ button {
   font-family: var(--mono);
   font-size: 10px;
 }
+
+/* ------------------------------------------------------------ side detail panes (scripts, animations) */
+
+.side-detail {
+  width: 340px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  background: var(--face);
+  overflow: hidden;
+}
+
+.side-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #fff;
+  border-top: 1px solid var(--shadow);
+  border-left: 1px solid var(--shadow);
+}
+
+.list-item.link {
+  cursor: pointer;
+  justify-content: space-between;
+}
+
+.loc-table tr.selected td {
+  background: var(--navy);
+  color: #fff;
+}
+
+.loc-table tbody tr {
+  cursor: default;
+}

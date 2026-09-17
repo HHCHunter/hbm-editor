@@ -5,6 +5,7 @@ const TABS: [Tab, string][] = [
   ['scene', 'Scene'],
   ['textures', 'Textures'],
   ['localisation', 'Localisation'],
+  ['scripts', 'Scripts'],
 ];
 
 export function TabStrip() {

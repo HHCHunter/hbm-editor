@@ -48,7 +48,7 @@ export interface MeshProgress {
   total: number;
 }
 
-export type Tab = 'scene' | 'textures' | 'localisation';
+export type Tab = 'scene' | 'textures' | 'localisation' | 'scripts';
 export type DialogName = 'gamePicker' | 'sceneOpen';
 export type SelMode = 'Geom' | 'Group';
 export type GizmoKind = 'Lights' | 'None';

@@ -9,6 +9,7 @@ import { HttpError } from './http/HttpError';
 import { registerGameRoutes } from './routes/gameRoutes';
 import { registerLocRoutes } from './routes/locRoutes';
 import { registerSceneRoutes } from './routes/sceneRoutes';
+import { registerScriptRoutes } from './routes/scriptRoutes';
 import { registerHostGuard } from './security/hostGuard';
 import { registerTokenGuard } from './security/sessionToken';
 import { VERSION } from './version';
@@ -61,6 +62,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   registerGameRoutes(app, game);
   registerSceneRoutes(app, game);
   registerLocRoutes(app, game);
+  registerScriptRoutes(app, game);
 
   if (opts.staticDir && existsSync(opts.staticDir)) {
     await app.register(fastifyStatic, { root: opts.staticDir });

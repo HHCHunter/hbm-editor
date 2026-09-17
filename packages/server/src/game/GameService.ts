@@ -1,7 +1,15 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { PeImage, resolveClassRegistry, resolveSchemas, type ClassRegistry, type SchemaRegistry } from '@hbm/formats';
+import {
+  PeImage,
+  readScriptCreators,
+  resolveClassRegistry,
+  resolveSchemas,
+  type ClassRegistry,
+  type SchemaRegistry,
+  type ScriptCreator,
+} from '@hbm/formats';
 import { nodeCodec, openFileSource, resolveGameDir } from '@hbm/formats/node';
 import type { SceneListItemDTO } from '@hbm/protocol';
 import { SceneArchive } from '@hbm/scene';
@@ -24,6 +32,7 @@ export class GameService {
   private exePromise: Promise<PeImage | null> | null = null;
   private registryPromise: Promise<ClassRegistry | null> | null = null;
   private schemasPromise: Promise<SchemaRegistry | null> | null = null;
+  private readonly scripts = new Map<string, Promise<{ dll: string; creators: ScriptCreator[] } | null>>();
   /** Least recently used first. */
   private readonly open = new Map<string, { scene: Promise<LoadedScene>; users: number; evicted: boolean }>();
 
@@ -64,6 +73,7 @@ export class GameService {
     this.exePromise = null;
     this.registryPromise = null;
     this.schemasPromise = null;
+    this.scripts.clear();
     await this.store.write({ gameRoot: root });
     return root;
   }
@@ -122,6 +132,27 @@ export class GameService {
       return image ? resolveSchemas(image) : null;
     })();
     return this.schemasPromise;
+  }
+
+  /** Script creators of a mission module ("M11", "hideout"), or null when its DLL isn't there. */
+  missionScripts(module: string): Promise<{ dll: string; creators: ScriptCreator[] } | null> {
+    const key = module.toLowerCase();
+    let pending = this.scripts.get(key);
+    if (!pending) {
+      pending = (async () => {
+        const dir = path.join(this.requireRoot(), 'Scriptcs', '_gamerelease');
+        if (!existsSync(dir)) return null;
+        const file = (await readdir(dir)).find((f) => f.toLowerCase() === `${key}.dll`);
+        if (!file) return null;
+        try {
+          return { dll: file, creators: readScriptCreators(new PeImage(new Uint8Array(await readFile(path.join(dir, file))))) };
+        } catch {
+          return null;
+        }
+      })();
+      this.scripts.set(key, pending);
+    }
+    return pending;
   }
 
   /**

@@ -28,6 +28,7 @@ export const MENUS: Record<string, MenuItem[]> = {
     { label: 'Scene View', shortcut: 'Ctrl+1' },
     { label: 'Texture Browser', shortcut: 'Ctrl+2' },
     { label: 'Localisation Browser', shortcut: 'Ctrl+3' },
+    { label: 'Script Browser', shortcut: 'Ctrl+4' },
   ],
   Help: [{ label: 'About', shortcut: '' }],
 };
