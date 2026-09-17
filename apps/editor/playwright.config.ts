@@ -11,7 +11,7 @@ export default defineConfig({
   timeout: 60_000,
   // The tests share one server, whose chosen game carries from test to test.
   workers: 1,
-  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.002 } },
+  expect: { toHaveScreenshot: { maxDiffPixels: 50 } },
   reporter: 'list',
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,

@@ -30,7 +30,8 @@
   box-shadow: var(--bevel-out);
   white-space: nowrap;
   cursor: default;
-  line-height: 1;
+  /* Room below the baseline, or underscores and descenders are clipped. */
+  line-height: 1.25;
 }
 
 .ui-btn:hover:not(:disabled) {
