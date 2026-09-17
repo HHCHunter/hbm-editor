@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+*.log
+.vite/
+
+# start.bat / dev.bat: portable Node, corepack cache and install/build stamps
+.runtime/
+
+# anything derived from game files must never be committed
+.cache/

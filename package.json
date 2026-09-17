@@ -1,0 +1,32 @@
+{
+  "name": "hbm-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local web editor for Hitman: Blood Money",
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,editor -c blue,green \"pnpm --filter @hbm/server dev\" \"pnpm --filter @hbm/editor dev\"",
+    "build": "pnpm --filter @hbm/editor build",
+    "start": "pnpm --filter @hbm/server start",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "eslint .",
+    "sweep": "pnpm --filter @hbm/formats sweep",
+    "harvest:classes": "node tools/harvest-classreg.mjs",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.18.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.20.0"
+  }
+}

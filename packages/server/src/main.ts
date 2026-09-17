@@ -1,0 +1,91 @@
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+import { buildApp } from './app';
+import { newSessionToken } from './security/sessionToken';
+import { VERSION } from './version';
+
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
+const here = path.dirname(fileURLToPath(import.meta.url));
+const EDITOR_DIST = path.resolve(here, '../../../apps/editor/dist');
+
+function fail(message: string): never {
+  console.error(`\nError: ${message}\n`);
+  process.exit(1);
+}
+
+function openBrowser(url: string): void {
+  const [cmd, args] =
+    process.platform === 'win32'
+      ? ['explorer.exe', [url]]
+      : process.platform === 'darwin'
+        ? ['open', [url]]
+        : ['xdg-open', [url]];
+  const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+  child.on('error', () => console.log(`Couldn't open a browser. Go to ${url}`));
+  child.unref();
+}
+
+async function main(): Promise<void> {
+  const { values } = parseArgs({
+    options: {
+      port: { type: 'string', default: '4757' },
+      host: { type: 'string', default: '127.0.0.1' },
+      game: { type: 'string' },
+      'no-open': { type: 'boolean', default: false },
+      dev: { type: 'boolean', default: false },
+    },
+  });
+
+  const port = Number(values.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    fail(`--port must be a number from 1 to 65535, got "${values.port}".`);
+  }
+  if (!LOOPBACK.has(values.host)) {
+    fail(
+      `--host must be a loopback address (127.0.0.1, localhost or ::1). ` +
+        `The editor reads and writes your game files, so it must not be reachable from other machines.`,
+    );
+  }
+
+  const staticDir = values.dev ? undefined : EDITOR_DIST;
+  if (staticDir && !existsSync(path.join(staticDir, 'index.html'))) {
+    console.warn(`The editor UI hasn't been built (${staticDir} is missing). Run: pnpm build`);
+  }
+
+  const app = await buildApp({ port, token: newSessionToken(), staticDir });
+  try {
+    await app.listen({ port, host: values.host });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+      fail(`Port ${port} is already in use. Is the editor already running? Otherwise pass --port.`);
+    }
+    throw err;
+  }
+
+  const hostPart = values.host === '::1' ? '[::1]' : values.host;
+  const url = `http://${hostPart}:${port}/`;
+  console.log(`Hitman: Blood Money Editor v${VERSION}`);
+  if (values.dev) {
+    console.log(`API server on ${url} (open the editor through Vite's URL)`);
+  } else {
+    console.log(`Editor running at ${url}`);
+  }
+  if (values.game) {
+    console.log(`--game "${values.game}" noted; choosing a game install arrives in M1.`);
+  }
+  if (!values.dev && !values['no-open']) openBrowser(url);
+
+  const shutdown = () => {
+    app.close().finally(() => process.exit(0));
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
+
+main().catch((err: unknown) => {
+  console.error(err);
+  process.exit(1);
+});
