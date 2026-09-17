@@ -1,8 +1,15 @@
+# dependencies and build output
 node_modules/
 dist/
 coverage/
-*.log
 .vite/
+*.tsbuildinfo
+.eslintcache
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
 
 # start.bat: portable Node, corepack cache and install/build stamps
 .runtime/
@@ -10,7 +17,48 @@ coverage/
 # the editor's settings, such as the chosen game install
 data/
 
-# anything derived from game files must never be committed
-.cache/
+# test output
 test-results/
 playwright-report/
+blob-report/
+playwright/.cache/
+
+# local environment and secrets
+.env
+.env.*
+!.env.example
+
+# editors and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code per-user settings
+.claude/settings.local.json
+
+# anything derived from game files must never be committed
+.cache/
+# game archives, assets and binaries, in case one is copied in to test against
+*.exe
+*.dll
+*.zip
+*.gms
+*.prm
+*.prp
+*.tex
+*.buf
+*.sgd
+*.mat
+*.loc
+*.str
+*.ani
+*.snd
+*.sup
+*.wav
+*.ogg
+*.rmi
