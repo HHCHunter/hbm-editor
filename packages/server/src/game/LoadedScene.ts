@@ -11,6 +11,7 @@ import {
   type Surface,
 } from '@hbm/scene';
 import type { HiddenReasonDTO, MeshRootDTO } from '@hbm/protocol';
+import { Once } from '../util/Once';
 
 /** An open scene archive with its derived data built on first use and kept. */
 export class LoadedScene {
@@ -18,9 +19,9 @@ export class LoadedScene {
   readonly archive: SceneArchive;
   private readonly source: FileSource;
   private readonly registry: ClassRegistry | null;
-  private graphPromise: Promise<SceneGraph> | null = null;
-  private surfacesPromise: Promise<Map<number, Surface>> | null = null;
-  private rootsPromise: Promise<MeshRootDTO[]> | null = null;
+  private readonly graphOnce = new Once<SceneGraph>();
+  private readonly surfacesOnce = new Once<Map<number, Surface>>();
+  private readonly rootsOnce = new Once<MeshRootDTO[]>();
   private readonly partsByRoot = new Map<number, MeshPart[]>();
 
   constructor(id: string, archive: SceneArchive, source: FileSource, registry: ClassRegistry | null) {
@@ -31,7 +32,7 @@ export class LoadedScene {
   }
 
   graph(): Promise<SceneGraph> {
-    this.graphPromise ??= (async () => {
+    return this.graphOnce.get(async () => {
       const [gms, buf, prp, prm] = await Promise.all([
         this.archive.gms(),
         this.archive.buf(),
@@ -39,17 +40,15 @@ export class LoadedScene {
         this.archive.prm(),
       ]);
       return buildSceneGraph({ gms, buf, prp, prm, registry: this.registry ?? undefined });
-    })();
-    return this.graphPromise;
+    });
   }
 
   /** Surfaces by material slot. */
   surfaces(): Promise<Map<number, Surface>> {
-    this.surfacesPromise ??= (async () => {
+    return this.surfacesOnce.get(async () => {
       const mat = await this.archive.mat();
       return new Map(mat.materials.map((m) => [m.slot, describeSurface(mat, m)]));
-    })();
-    return this.surfacesPromise;
+    });
   }
 
   async parts(root: number): Promise<MeshPart[]> {
@@ -64,7 +63,7 @@ export class LoadedScene {
 
   /** A summary of every model root the scene places. */
   roots(): Promise<MeshRootDTO[]> {
-    this.rootsPromise ??= (async () => {
+    return this.rootsOnce.get(async () => {
       const [graph, surfaces, prm] = await Promise.all([this.graph(), this.surfaces(), this.archive.prm()]);
       const roots = [...new Set(graph.nodes.map((n) => n.meshRoot).filter(Boolean))].sort((a, b) => a - b);
       const out: MeshRootDTO[] = [];
@@ -94,8 +93,7 @@ export class LoadedScene {
         });
       }
       return out;
-    })();
-    return this.rootsPromise;
+    });
   }
 
   close(): Promise<void> {

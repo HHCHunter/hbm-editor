@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -28,6 +28,22 @@ function openBrowser(url: string): void {
   const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
   child.on('error', () => console.log(`Couldn't open a browser. Go to ${url}`));
   child.unref();
+}
+
+/** Past this size the log is moved to server.log.old at start-up, replacing the older copy. */
+const LOG_LIMIT = 5 * 1024 * 1024;
+
+/** The request log, started fresh once it grows past LOG_LIMIT. */
+function prepareLog(dataDir: string): string | undefined {
+  const file = path.join(dataDir, 'logs', 'server.log');
+  try {
+    mkdirSync(path.dirname(file), { recursive: true });
+    if (existsSync(file) && statSync(file).size > LOG_LIMIT) renameSync(file, `${file}.old`);
+    return file;
+  } catch {
+    // Logging is a diagnostic aid; the editor works without it.
+    return undefined;
+  }
 }
 
 /**
@@ -64,7 +80,8 @@ async function main(): Promise<void> {
     },
   });
 
-  recordCrashes(values.data ?? defaultDataDir());
+  const dataDir = values.data ?? defaultDataDir();
+  recordCrashes(dataDir);
 
   const port = Number(values.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -84,7 +101,7 @@ async function main(): Promise<void> {
 
   let app;
   try {
-    app = await buildApp({ port, token: newSessionToken(), staticDir, game: values.game, dataDir: values.data });
+    app = await buildApp({ port, token: newSessionToken(), staticDir, game: values.game, dataDir: values.data, logFile: prepareLog(dataDir) });
   } catch (err) {
     if (err instanceof HttpError) fail(err.message);
     throw err;

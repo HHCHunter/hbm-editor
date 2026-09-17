@@ -15,6 +15,7 @@ import type { SceneListItemDTO } from '@hbm/protocol';
 import { SceneArchive } from '@hbm/scene';
 import type { ConfigStore } from '../config/configStore';
 import { HttpError } from '../http/HttpError';
+import { Once } from '../util/Once';
 import { LoadedScene } from './LoadedScene';
 
 export interface SceneFile extends SceneListItemDTO {
@@ -28,10 +29,10 @@ const OPEN_SCENES = 2;
 export class GameService {
   private readonly store: ConfigStore;
   root: string | null = null;
-  private catalog: Promise<Map<string, SceneFile>> | null = null;
-  private exePromise: Promise<PeImage | null> | null = null;
-  private registryPromise: Promise<ClassRegistry | null> | null = null;
-  private schemasPromise: Promise<SchemaRegistry | null> | null = null;
+  private readonly catalog = new Once<Map<string, SceneFile>>();
+  private readonly exe = new Once<PeImage | null>();
+  private readonly registry = new Once<ClassRegistry | null>();
+  private readonly schemaRegistry = new Once<SchemaRegistry | null>();
   private readonly scripts = new Map<string, Promise<{ dll: string; creators: ScriptCreator[] } | null>>();
   /** Least recently used first. */
   private readonly open = new Map<string, { scene: Promise<LoadedScene>; users: number; evicted: boolean }>();
@@ -69,10 +70,10 @@ export class GameService {
     }
     await this.closeScenes();
     this.root = root;
-    this.catalog = null;
-    this.exePromise = null;
-    this.registryPromise = null;
-    this.schemasPromise = null;
+    this.catalog.clear();
+    this.exe.clear();
+    this.registry.clear();
+    this.schemaRegistry.clear();
     this.scripts.clear();
     await this.store.write({ gameRoot: root });
     return root;
@@ -85,7 +86,7 @@ export class GameService {
 
   async scenes(): Promise<Map<string, SceneFile>> {
     const root = this.requireRoot();
-    this.catalog ??= (async () => {
+    return this.catalog.get(async () => {
       const scenesDir = path.join(root, 'Scenes');
       const files = (await readdir(scenesDir, { recursive: true })).filter((f) => /\.zip$/i.test(f)).sort();
       const catalog = new Map<string, SceneFile>();
@@ -96,13 +97,12 @@ export class GameService {
         catalog.set(id, { id, group: slash < 0 ? '' : id.slice(0, slash), bytes: (await stat(full)).size, path: full });
       }
       return catalog;
-    })();
-    return this.catalog;
+    });
   }
 
   /** The parsed executable, or null when it's missing or unreadable. */
   private exeImage(): Promise<PeImage | null> {
-    this.exePromise ??= (async () => {
+    return this.exe.get(async () => {
       const exe = this.exePath();
       if (!exe) return null;
       try {
@@ -110,28 +110,25 @@ export class GameService {
       } catch {
         return null;
       }
-    })();
-    return this.exePromise;
+    });
   }
 
   /** Class names from the executable, or null when it's missing or unreadable. */
   classRegistry(): Promise<ClassRegistry | null> {
-    this.registryPromise ??= (async () => {
+    return this.registry.get(async () => {
       const image = await this.exeImage();
       if (!image) return null;
       const registry = resolveClassRegistry(image);
       return registry.byTypeId.size ? registry : null;
-    })();
-    return this.registryPromise;
+    });
   }
 
   /** Property chains from the executable, or null when it can't be read. */
   schemas(): Promise<SchemaRegistry | null> {
-    this.schemasPromise ??= (async () => {
+    return this.schemaRegistry.get(async () => {
       const image = await this.exeImage();
       return image ? resolveSchemas(image) : null;
-    })();
-    return this.schemasPromise;
+    });
   }
 
   /** Script creators of a mission module ("M11", "hideout"), or null when its DLL isn't there. */
@@ -151,6 +148,10 @@ export class GameService {
         }
       })();
       this.scripts.set(key, pending);
+      const settled = pending;
+      settled.catch(() => {
+        if (this.scripts.get(key) === settled) this.scripts.delete(key);
+      });
     }
     return pending;
   }

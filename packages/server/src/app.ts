@@ -25,17 +25,18 @@ export interface AppOptions {
   dataDir?: string;
   /** A game install to switch to at start-up, as given to --game. */
   game?: string;
-  logger?: boolean;
+  /** Where warnings and unexpected request errors are appended. Left out, nothing is logged. */
+  logFile?: string;
 }
 
 export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
-  const app = Fastify({ logger: opts.logger ?? false });
+  const app = Fastify({ logger: opts.logFile ? { level: 'warn', file: opts.logFile } : false });
 
   // Hooks run in registration order: Host first, so a rebinding page learns nothing else.
   registerHostGuard(app, opts.port);
   registerTokenGuard(app, opts.token);
 
-  app.setErrorHandler((err, _req, reply) => {
+  app.setErrorHandler((err, req, reply) => {
     let status = 500;
     let message = err instanceof Error ? err.message : String(err);
     if (err instanceof HttpError) status = err.status;
@@ -45,7 +46,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     } else if (typeof (err as { statusCode?: number }).statusCode === 'number') {
       status = (err as { statusCode: number }).statusCode;
     } else {
-      app.log.error(err);
+      app.log.error({ err, url: req.url }, 'request failed');
     }
     const body: ErrorDTO = { error: message };
     reply.code(status).send(body);
