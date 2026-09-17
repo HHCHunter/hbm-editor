@@ -6,14 +6,16 @@ export function StatusBar() {
   const cam = useEditor((s) => s.cam);
 
   return (
-    <div className="statusbar">
-      <div className="status-cell status-main bevel-in">{statusMsg}</div>
+    <footer className="statusbar">
+      <div className="status-cell status-main bevel-in" role="status">
+        {statusMsg}
+      </div>
       <div className="status-cell status-sel bevel-in">
         {selCount ? `${selCount} object(s) selected` : 'Nothing selected'}
       </div>
       <div className="status-cell status-cam bevel-in">
         y{cam.yaw.toFixed(2)} p{cam.pitch.toFixed(2)} d{cam.dist.toFixed(0)}
       </div>
-    </div>
+    </footer>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { MenuBar } from './components/chrome/MenuBar';
 import { StatusBar } from './components/chrome/StatusBar';
-import { TabStrip } from './components/chrome/TabStrip';
+import { TAB_PREFIX, TabStrip } from './components/chrome/TabStrip';
 import { SceneTree } from './components/outliner/SceneTree';
 import { HeaderFields } from './components/properties/HeaderFields';
 import { PropertyGrid } from './components/properties/PropertyGrid';
@@ -14,8 +14,10 @@ import { LocalisationBrowser } from './panels/LocalisationBrowser';
 import { SceneOpenDialog } from './panels/SceneOpenDialog';
 import { ScriptBrowser } from './panels/ScriptBrowser';
 import { TextureBrowser } from './panels/TextureBrowser';
+import { SettingsDialog } from './settings/SettingsDialog';
 import { startUp } from './state/sceneLoader';
 import { useEditor } from './state/store';
+import { TabPanel, ToastRegion } from './ui';
 
 const APP_TITLE = 'Hitman: Blood Money Editor';
 
@@ -38,28 +40,34 @@ export function App() {
       <MenuBar />
       <div className="workspace">
         <ToolRail />
-        <div className="centre">
+        <main className="centre" aria-label="Workspace">
           <TabStrip />
           {/* The viewport stays mounted so switching tabs keeps its models. */}
-          <div className="centre-page" hidden={tab !== 'scene'}>
+          <TabPanel idPrefix={TAB_PREFIX} id="scene" className="centre-page" hidden={tab !== 'scene'}>
             <Viewport />
-          </div>
-          {tab === 'textures' && <TextureBrowser />}
-          {tab === 'localisation' && <LocalisationBrowser />}
-          {tab === 'scripts' && <ScriptBrowser />}
-          {tab === 'animations' && <AnimationBrowser />}
-        </div>
-        <div className="right-col">
+          </TabPanel>
+          {tab !== 'scene' && (
+            <TabPanel idPrefix={TAB_PREFIX} id={tab} className="centre-page">
+              {tab === 'textures' && <TextureBrowser />}
+              {tab === 'localisation' && <LocalisationBrowser />}
+              {tab === 'scripts' && <ScriptBrowser />}
+              {tab === 'animations' && <AnimationBrowser />}
+            </TabPanel>
+          )}
+        </main>
+        <aside className="right-col" aria-label="Scene objects and properties">
           <SceneTree />
           <div className="props-area">
             <HeaderFields />
             <PropertyGrid />
           </div>
-        </div>
+        </aside>
       </div>
       <StatusBar />
       {dialog === 'gamePicker' && <GamePickerDialog />}
       {dialog === 'sceneOpen' && <SceneOpenDialog />}
+      {dialog === 'settings' && <SettingsDialog />}
+      <ToastRegion />
     </div>
   );
 }

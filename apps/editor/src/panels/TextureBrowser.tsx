@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+/* eslint-disable jsx-a11y/interactive-supports-focus -- focus stays on the container, which points at the active item with aria-activedescendant */
+import { useId, useMemo, useRef, useState } from 'react';
 import type { TextureDTO } from '@hbm/protocol';
 import { listTextures, textureUrl } from '../api/endpoints';
 import { useAsync } from '../hooks/useAsync';
 import { useEditor } from '../state/store';
+import { PanelState, SearchField, Select } from '../ui';
 
 const THUMB_EDGE = 128;
 
@@ -18,44 +20,65 @@ function thumbLevel(t: TextureDTO): number {
 function TextureDetail({ sceneId, texture }: { sceneId: string; texture: TextureDTO }) {
   const surfaces = useEditor((s) => s.scene?.surfaces);
   const [level, setLevel] = useState(() => Math.max(0, texture.levels.findIndex((l) => l.size > 0)));
-  const users = texture.materials.map((slot) => `${slot}: ${surfaces?.[slot]?.name ?? '?'}`);
+  const [failed, setFailed] = useState(false);
+  const users = texture.materials.map((slot) => `${slot}: ${surfaces?.[slot]?.name ?? 'unnamed material'}`);
 
   return (
-    <div className="tex-detail bevel-in">
+    <section className="tex-detail bevel-in" aria-label={`Texture ${texture.name}`}>
       <div className="tex-detail-image checker">
-        <img key={`${texture.id}:${level}`} src={textureUrl(sceneId, texture.id, level)} alt={texture.name} />
+        {failed ? (
+          <PanelState variant="error" title="Couldn't decode this level" message="Try another mip level." />
+        ) : (
+          <img
+            key={`${texture.id}:${level}`}
+            src={textureUrl(sceneId, texture.id, level)}
+            alt={`${texture.name}, level ${level}`}
+            onError={() => setFailed(true)}
+            onLoad={() => setFailed(false)}
+          />
+        )}
       </div>
       <div className="tex-detail-info">
-        <div className="tex-title">{texture.name}</div>
-        <table className="kv">
-          <tbody>
-            <tr><td>Id</td><td>{texture.id}</td></tr>
-            <tr><td>Format</td><td>{texture.format}</td></tr>
-            <tr><td>Size</td><td>{texture.width} × {texture.height}</td></tr>
-            <tr><td>Flags</td><td>0x{texture.flags.toString(16).toUpperCase()}</td></tr>
-            {texture.faces && <tr><td>Cube faces</td><td>{texture.faces.join(', ')}</td></tr>}
-            <tr>
-              <td>Level</td>
-              <td>
-                <select value={level} onChange={(e) => setLevel(Number(e.target.value))}>
-                  {texture.levels.map((l, i) => (
-                    <option key={i} value={i} disabled={l.size === 0}>
-                      {i}: {l.width} × {l.height}{l.size === 0 ? ' (empty)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div className="group-hdr">Materials ({users.length})</div>
-        <div className="tex-users">
+        <h3 className="tex-title">{texture.name}</h3>
+        <dl className="kv">
+          <dt>Id</dt>
+          <dd>{texture.id}</dd>
+          <dt>Format</dt>
+          <dd>{texture.format}</dd>
+          <dt>Size</dt>
+          <dd>
+            {texture.width} × {texture.height}
+          </dd>
+          <dt>Flags</dt>
+          <dd className="mono">0x{texture.flags.toString(16).toUpperCase()}</dd>
+          {texture.faces && (
+            <>
+              <dt>Cube faces</dt>
+              <dd>{texture.faces.join(', ')}</dd>
+            </>
+          )}
+        </dl>
+        <Select
+          label="Mip level"
+          value={level}
+          options={texture.levels.map((l, i) => ({
+            value: i,
+            label: `${i}: ${l.width} × ${l.height}${l.size === 0 ? ' (empty)' : ''}`,
+            disabled: l.size === 0,
+          }))}
+          onChange={(value) => {
+            setFailed(false);
+            setLevel(value);
+          }}
+        />
+        <h4 className="group-hdr">Materials using it ({users.length})</h4>
+        <ul className="tex-users">
           {users.map((name, i) => (
-            <div key={i}>{name}</div>
+            <li key={i}>{name}</li>
           ))}
-        </div>
+        </ul>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -64,6 +87,8 @@ export function TextureBrowser() {
   const textures = useAsync(sceneId ? () => listTextures(sceneId) : null, [sceneId]);
   const [filter, setFilter] = useState('');
   const [chosen, setChosen] = useState<number | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const id = useId();
 
   const shown = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -71,37 +96,94 @@ export function TextureBrowser() {
   }, [textures.value, filter]);
   const texture = textures.value?.find((t) => t.id === chosen) ?? null;
 
-  if (!sceneId) return <div className="panel-empty">Open a scene to browse its textures.</div>;
+  if (!sceneId) return <PanelState variant="empty" title="No scene open" message="Open a scene to browse its textures." />;
+
+  const choose = (index: number) => {
+    const t = shown[Math.max(0, Math.min(shown.length - 1, index))];
+    if (!t) return;
+    setChosen(t.id);
+    document.getElementById(`${id}-${t.id}`)?.scrollIntoView({ block: 'nearest' });
+  };
+
+  /** Cells per row, measured from the laid-out grid. */
+  const columns = () => {
+    const cells = gridRef.current?.querySelectorAll<HTMLElement>('.tex-cell');
+    if (!cells?.length) return 1;
+    const top = cells[0]!.offsetTop;
+    let n = 0;
+    while (n < cells.length && cells[n]!.offsetTop === top) n++;
+    return Math.max(1, n);
+  };
+
+  const at = shown.findIndex((t) => t.id === chosen);
 
   return (
     <div className="browser">
       <div className="browser-bar">
-        <input className="sunken-input" value={filter} placeholder="name or id" onChange={(e) => setFilter(e.target.value)} />
-        <span className="browser-count">
-          {textures.status === 'loading' ? 'Reading…' : `${shown.length} of ${textures.value?.length ?? 0} textures`}
-        </span>
-        {textures.status === 'error' && <span className="error">{textures.error}</span>}
+        <SearchField
+          label="Filter textures"
+          placeholder="Filter by name or id"
+          value={filter}
+          onChange={setFilter}
+          count={textures.value ? `${shown.length} of ${textures.value.length} textures` : undefined}
+        />
       </div>
       <div className="browser-body">
-        <div className="tex-grid bevel-in">
-          {shown.map((t) => {
-            const level = thumbLevel(t);
-            return (
-              <div
-                key={t.id}
-                className={`tex-cell${t.id === chosen ? ' selected' : ''}`}
-                title={`${t.id} · ${t.name} · ${t.format} ${t.width}×${t.height}`}
-                data-texture={t.id}
-                onClick={() => setChosen(t.id)}
-              >
-                <div className="tex-thumb checker">
-                  {level >= 0 && <img loading="lazy" src={textureUrl(sceneId, t.id, level)} alt="" />}
+        {textures.status === 'loading' && <PanelState variant="loading" title="Reading textures…" />}
+        {textures.status === 'error' && <PanelState variant="error" title="Couldn't read this scene's textures" message={textures.error} />}
+        {textures.value && (
+          <div
+            ref={gridRef}
+            className="tex-grid bevel-in"
+            role="listbox"
+            aria-label="Textures"
+            aria-orientation="horizontal"
+            tabIndex={0}
+            aria-activedescendant={chosen !== null && at >= 0 ? `${id}-${chosen}` : undefined}
+            onKeyDown={(e) => {
+              const cols = columns();
+              if (e.key === 'ArrowRight') choose(at + 1);
+              else if (e.key === 'ArrowLeft') choose(at - 1);
+              else if (e.key === 'ArrowDown') choose(at < 0 ? 0 : at + cols);
+              else if (e.key === 'ArrowUp') choose(at - cols);
+              else if (e.key === 'Home') choose(0);
+              else if (e.key === 'End') choose(shown.length - 1);
+              else return;
+              e.preventDefault();
+            }}
+          >
+            {!shown.length && (
+              <PanelState
+                variant="empty"
+                layout="inline"
+                title={`No textures match “${filter}”`}
+                action={{ label: 'Clear Filter', onClick: () => setFilter('') }}
+              />
+            )}
+            {shown.map((t) => {
+              const level = thumbLevel(t);
+              return (
+                // The grid owns focus and keyboard handling.
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                <div
+                  key={t.id}
+                  id={`${id}-${t.id}`}
+                  role="option"
+                  aria-selected={t.id === chosen}
+                  className={`tex-cell${t.id === chosen ? ' selected' : ''}`}
+                  title={`${t.id} · ${t.name} · ${t.format} ${t.width}×${t.height}`}
+                  data-texture={t.id}
+                  onClick={() => setChosen(t.id)}
+                >
+                  <div className="tex-thumb checker">
+                    {level >= 0 && <img loading="lazy" src={textureUrl(sceneId, t.id, level)} alt="" />}
+                  </div>
+                  <div className="tex-name">{t.name.split('/').pop()}</div>
                 </div>
-                <div className="tex-name">{t.name.split('/').pop()}</div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
         {texture && <TextureDetail key={texture.id} sceneId={sceneId} texture={texture} />}
       </div>
     </div>

@@ -5,6 +5,7 @@
  */
 export const DEFAULT_KEYMAP = {
   'file.openScene': 'Ctrl+O',
+  'file.settings': 'Ctrl+,',
   'edit.undo': 'Ctrl+Z',
   'edit.redo': 'Ctrl+Y',
   'edit.hide': 'H',

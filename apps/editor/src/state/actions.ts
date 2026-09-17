@@ -18,7 +18,6 @@ export function formatNumber(n: number): string {
 export function openDialog(dialog: DialogName | null): void {
   store().update((s) => {
     s.dialog = dialog;
-    s.menuOpen = null;
   });
 }
 
@@ -72,10 +71,16 @@ export function invertSelection(): void {
 }
 
 /** Select the row after the current selection, in outliner order. */
-export function selectNext(orderedIndices: readonly number[]): void {
-  if (!orderedIndices.length) return;
-  const i = orderedIndices.indexOf(store().sel[0] ?? -1);
-  selectNode(orderedIndices[(i + 1) % orderedIndices.length]!, false);
+/** Select every row from `anchor` to `index`, in outliner order. */
+export function selectRange(orderedIndices: readonly number[], anchor: number, index: number): void {
+  const a = orderedIndices.indexOf(anchor);
+  const b = orderedIndices.indexOf(index);
+  if (a < 0 || b < 0) return selectNode(index, false);
+  const range = orderedIndices.slice(Math.min(a, b), Math.max(a, b) + 1);
+  store().update((s) => {
+    s.sel = [anchor, ...range.filter((i) => i !== anchor)];
+    s.statusMsg = `${range.length} objects selected`;
+  });
 }
 
 export function pickFromViewport(index: number | null, additive: boolean): void {
@@ -189,6 +194,20 @@ export function toggleExpanded(index: number): void {
   });
 }
 
+/** Open a node and everything below it. */
+export function expandSubtree(index: number): void {
+  store().update((s) => {
+    if (!s.scene) return;
+    const stack = [index];
+    while (stack.length) {
+      const at = stack.pop()!;
+      const kids = s.scene.children[at + 1] ?? [];
+      if (kids.length) s.expanded[at] = true;
+      stack.push(...kids);
+    }
+  });
+}
+
 export function setAllExpanded(expanded: boolean): void {
   store().update((s) => {
     s.expanded = {};
@@ -226,52 +245,3 @@ function toggleNodeFlag(key: 'hidden' | 'frozen', verb: string): void {
 
 export const toggleHideSelection = () => toggleNodeFlag('hidden', 'Hide');
 export const toggleFreezeSelection = () => toggleNodeFlag('frozen', 'Freeze');
-
-// ---------------------------------------------------------------- menus
-
-const MESSAGES: Record<string, string> = {
-  Exit: 'Close this tab and the launcher window to exit.',
-  About: 'Hitman: Blood Money Editor · reads your game files through the local server',
-};
-
-export function runMenuCommand(name: string): void {
-  const s = store();
-  switch (name) {
-    case 'Choose Game…':
-      return openDialog('gamePicker');
-    case 'Open Scene…':
-      return openDialog('sceneOpen');
-    case 'Undo':
-      return s.undo();
-    case 'Redo':
-      return s.redo();
-    case 'Hide Selection':
-      return toggleHideSelection();
-    case 'Freeze Selection':
-      return toggleFreezeSelection();
-    case 'Wireframe':
-      return toggleViewFlag('W');
-    case 'Lighting':
-      return toggleViewFlag('Li');
-    case 'Fog':
-      return toggleViewFlag('F');
-    case 'Grid':
-      return toggleViewFlag('G');
-    case 'Frame All':
-      return zoomExtents();
-    case 'Frame Selected':
-      return zoomSelected();
-    case 'Scene View':
-      return setTab('scene');
-    case 'Texture Browser':
-      return setTab('textures');
-    case 'Localisation Browser':
-      return setTab('localisation');
-    case 'Script Browser':
-      return setTab('scripts');
-    case 'Animation Browser':
-      return setTab('animations');
-    default:
-      setStatus(MESSAGES[name] ?? `${name.replace(/…$/, '')} isn't available yet`);
-  }
-}

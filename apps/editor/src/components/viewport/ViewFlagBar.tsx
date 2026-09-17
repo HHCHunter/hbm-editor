@@ -1,6 +1,14 @@
+import { RotateCcw } from 'lucide-react';
 import type { HiddenReasonDTO } from '@hbm/protocol';
+import { DEFAULT_KEYMAP } from '../../commands/defaultKeymap';
 import { resetViewAngle, setLod, toggleShown, toggleViewFlag, VIEW_ANGLES, viewFrom } from '../../state/actions';
-import { VIEW_FLAGS, VIEW_FLAG_TITLES, useEditor } from '../../state/store';
+import { VIEW_FLAGS, VIEW_FLAG_TITLES, useEditor, type ViewFlag } from '../../state/store';
+import { Button, IconButton, Select, ToggleButton, Toolbar, ToolbarSeparator, Tooltip } from '../../ui';
+
+const FLAG_SHORTCUTS: Partial<Record<ViewFlag, string>> = {
+  W: DEFAULT_KEYMAP['view.wireframe'],
+  G: DEFAULT_KEYMAP['view.grid'],
+};
 
 const SHOWN: [reason: HiddenReasonDTO, label: string, title: string][] = [
   ['collision', 'K', 'Collision geometry'],
@@ -17,52 +25,51 @@ export function ViewFlagBar() {
   const filters = useEditor((s) => s.filters);
 
   return (
-    <div className="viewport-toolbar">
-      <div className="viewport-label">Perspective</div>
+    <Toolbar label="Viewport display" className="viewport-toolbar">
+      <span className="viewport-label">Perspective</span>
       {VIEW_FLAGS.map((flag) => (
-        <div
+        <ToggleButton
           key={flag}
-          className={`viewflag${view[flag] ? ' on' : ''}`}
-          title={VIEW_FLAG_TITLES[flag]}
-          onClick={() => toggleViewFlag(flag)}
+          className="viewflag"
+          label={VIEW_FLAG_TITLES[flag]}
+          shortcut={FLAG_SHORTCUTS[flag]}
+          pressed={view[flag]}
+          onPressedChange={() => toggleViewFlag(flag)}
         >
           {flag}
-        </div>
+        </ToggleButton>
       ))}
-      <div className="viewflag-sep" />
+      <ToolbarSeparator />
       {SHOWN.map(([reason, label, title]) => (
-        <div
+        <ToggleButton
           key={reason}
-          className={`viewflag${filters.show[reason] ? ' on' : ''}`}
-          title={title}
-          onClick={() => toggleShown(reason)}
+          className="viewflag"
+          label={title}
+          description="Special geometry the game doesn't draw"
+          pressed={filters.show[reason]}
+          onPressedChange={() => toggleShown(reason)}
         >
           {label}
-        </div>
+        </ToggleButton>
       ))}
-      <div className="viewflag-sep" />
-      {/* One-shot camera angles, not toggles: orbiting afterwards leaves them. */}
+      <ToolbarSeparator />
       {SIDES.map((side) => (
-        <div key={side} className="viewflag" title={`Look from the ${side.toLowerCase()}`} onClick={() => viewFrom(side)}>
-          {side[0]}
-        </div>
+        <Tooltip key={side} title={`Look from the ${side.toLowerCase()}`} describe={false}>
+          <Button variant="tool" className="viewflag" aria-label={`Look from the ${side.toLowerCase()}`} onClick={() => viewFrom(side)}>
+            {side[0]}
+          </Button>
+        </Tooltip>
       ))}
-      <div className="viewflag" title="Default view angle" onClick={resetViewAngle}>
-        ⟲
-      </div>
-      <div className="viewflag-sep" />
-      <select
-        className="viewport-lod"
-        title="Level of detail"
+      <IconButton icon={RotateCcw} className="viewflag" label="Default view angle" onClick={resetViewAngle} />
+      <ToolbarSeparator />
+      <Select
+        label="Level of detail"
+        hideLabel
+        compact
         value={filters.lod}
-        onChange={(e) => setLod(Number(e.target.value))}
-      >
-        {[0, 1, 2, 3, 4, 5, 6, 7].map((level) => (
-          <option key={level} value={level}>
-            LOD {level}
-          </option>
-        ))}
-      </select>
-    </div>
+        options={[0, 1, 2, 3, 4, 5, 6, 7].map((level) => ({ value: level, label: `LOD ${level}` }))}
+        onChange={setLod}
+      />
+    </Toolbar>
   );
 }

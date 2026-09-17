@@ -2,17 +2,19 @@ import { useMemo, useState } from 'react';
 import type { AnimationClipDTO, SceneAnimationsDTO } from '@hbm/protocol';
 import { getSceneAnimations } from '../api/endpoints';
 import { useAsync } from '../hooks/useAsync';
-import { nodeLabel } from '../scene/sceneModel';
-import { selectNode, setTab, zoomSelected } from '../state/actions';
 import { useEditor } from '../state/store';
+import { Button, DataTable, PanelState, SearchField, type Column } from '../ui';
+import { NodeLinkList } from './NodeLinkList';
 
 const ROOT_TRACK = 0x38;
+/** Users listed per collection; the rest are counted. */
+const USERS_SHOWN = 50;
 
 /** The clip's decoding path, as its flags select it. */
 function clipKind(clip: AnimationClipDTO): string {
   const kinds: string[] = [];
   if (clip.mask & 0x4) kinds.push('human state');
-  if (clip.mask & 0x2) kinds.push('bone quaternions');
+  if (clip.mask & 0x2) kinds.push('bone rotations');
   if (clip.mask & 0x20) kinds.push('pose');
   return kinds.join(' + ') || 'none';
 }
@@ -23,83 +25,69 @@ function splitName(name: string): { collection: string; clip: string } {
   return m ? { collection: m[1]!, clip: m[2]! } : { collection: '', clip: name };
 }
 
-function showNode(index: number) {
-  setTab('scene');
-  selectNode(index, false, true);
-  zoomSelected();
-}
+const seconds = (c: AnimationClipDTO) => c.frames / Math.max(1, c.fps);
 
-function ClipDetail({ clip, data }: { clip: AnimationClipDTO; data: SceneAnimationsDTO }) {
+const COLUMNS: Column<AnimationClipDTO>[] = [
+  { id: 'collection', header: 'Collection', width: 10, sortValue: (c) => splitName(c.name).collection, cell: (c) => splitName(c.name).collection },
+  { id: 'clip', header: 'Clip', sortValue: (c) => splitName(c.name).clip, cell: (c) => <span title={c.name}>{splitName(c.name).clip}</span> },
+  { id: 'frames', header: 'Frames', width: 5, align: 'end', sortValue: (c) => c.frames, cell: (c) => c.frames },
+  { id: 'seconds', header: 'Seconds', width: 5.5, align: 'end', sortValue: seconds, cell: (c) => seconds(c).toFixed(2) },
+  { id: 'data', header: 'Data', width: 11, sortValue: clipKind, cell: clipKind },
+];
+
+function ClipDetail({ clip, data, onBack }: { clip: AnimationClipDTO; data: SceneAnimationsDTO; onBack: () => void }) {
   return (
-    <div className="side-detail bevel-in">
-      <div className="tex-title">{clip.name}</div>
-      <table className="kv">
-        <tbody>
-          <tr>
-            <td>Frames</td>
-            <td>
-              {clip.frames} at {clip.fps} fps ({(clip.frames / Math.max(1, clip.fps)).toFixed(2)} s)
-            </td>
-          </tr>
-          <tr>
-            <td>Data</td>
-            <td>{clipKind(clip)}</td>
-          </tr>
-          <tr>
-            <td>Flags</td>
-            <td>0x{clip.mask.toString(16).toUpperCase()}</td>
-          </tr>
-          <tr>
-            <td>Blend frames</td>
-            <td>{clip.blendFrames}</td>
-          </tr>
-        </tbody>
-      </table>
+    <section className="side-detail bevel-in" aria-label={`Clip ${clip.name}`}>
+      <Button variant="link" onClick={onBack}>
+        ‹ All collections
+      </Button>
+      <h3 className="tex-title">{clip.name}</h3>
+      <dl className="kv">
+        <dt>Length</dt>
+        <dd>
+          {clip.frames} frames at {clip.fps} fps ({seconds(clip).toFixed(2)} s)
+        </dd>
+        <dt>Data</dt>
+        <dd>{clipKind(clip)}</dd>
+        <dt>Blend frames</dt>
+        <dd>{clip.blendFrames}</dd>
+        <dt>Flags</dt>
+        <dd className="mono">0x{clip.mask.toString(16).toUpperCase()}</dd>
+      </dl>
       {clip.mask & 0x4 ? (
-        <div className="dialog-text">
-          Human-state channels are expanded per character by the engine's StateFit, which isn't recovered yet.
-        </div>
+        <p className="browser-summary">
+          The game adapts human-state channels to each character when it plays them. That step isn&apos;t understood yet, so these
+          channels can&apos;t be shown.
+        </p>
       ) : null}
-      <div className="group-hdr">Bones ({clip.boneIds.length})</div>
-      <div className="side-list">
+      <h4 className="group-hdr">Bones ({clip.boneIds.length})</h4>
+      <ul className="side-list">
         {clip.boneIds.map((id) => (
-          <div key={id} className="list-item">
-            {data.boneNames[id] ?? `bone ${id}`}
+          <li key={id} className="list-item">
+            <span className="grow">{data.boneNames[id] ?? `Bone ${id}`}</span>
             <span className="list-meta">{id === ROOT_TRACK ? 'root track' : `#${id}`}</span>
-          </div>
+          </li>
         ))}
-      </div>
-    </div>
+      </ul>
+    </section>
   );
 }
 
-/** Users listed per collection; the rest are counted. */
-const USERS_SHOWN = 50;
-
 function Collections({ data }: { data: SceneAnimationsDTO }) {
-  const nodes = useEditor((s) => s.scene?.graph.nodes);
   return (
-    <div className="side-detail bevel-in">
-      <div className="group-hdr">Collections ({data.collections.length})</div>
-      <div className="side-list">
+    <section className="side-detail bevel-in" aria-label="Animation collections">
+      <h3 className="tex-title">Collections ({data.collections.length})</h3>
+      <div className="side-scroll">
         {data.collections.map((c) => (
-          <div key={c.name}>
-            <div className="list-group">
-              {c.name.replace(/^anmcol:animationdatabase#/, '')} <span className="list-meta">{c.users.length} object(s)</span>
-            </div>
-            {c.users.slice(0, USERS_SHOWN).map((index) => (
-              <div key={index} className="list-item link" onClick={() => showNode(index)}>
-                {nodes?.[index] ? nodeLabel(nodes[index]!) : `node ${index}`}
-                <span className="list-meta">#{index}</span>
-              </div>
-            ))}
-            {c.users.length > USERS_SHOWN && (
-              <div className="list-item list-meta">and {c.users.length - USERS_SHOWN} more</div>
-            )}
-          </div>
+          <NodeLinkList
+            key={c.name}
+            label={`${c.name.replace(/^anmcol:animationdatabase#/, '')} · ${c.users.length} object(s)`}
+            nodes={c.users}
+            limit={USERS_SHOWN}
+          />
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -115,50 +103,44 @@ export function AnimationBrowser() {
   }, [data.value, filter]);
   const clip = data.value?.clips[chosen ?? -1] ?? null;
 
-  if (!sceneId) return <div className="panel-empty">Open a scene to browse its animations.</div>;
+  if (!sceneId) return <PanelState variant="empty" title="No scene open" message="Open a scene to browse its animations." />;
 
   return (
     <div className="browser">
       <div className="browser-bar">
-        <input className="sunken-input" value={filter} placeholder="clip name" onChange={(e) => setFilter(e.target.value)} />
-        <span className="browser-count">
-          {data.status === 'loading'
-            ? 'Reading…'
-            : data.value
-              ? `${shown.length} of ${data.value.clips.length} clips · ${data.value.boneNames.length} bones · playback needs the clip decoder, not recovered yet`
-              : ''}
-        </span>
-        {data.status === 'error' && <span className="error">{data.error}</span>}
+        <SearchField
+          label="Filter clips"
+          placeholder="Filter clips by name"
+          value={filter}
+          onChange={setFilter}
+          count={data.value ? `${shown.length} of ${data.value.clips.length} clips` : undefined}
+        />
       </div>
+      <p className="browser-summary">Playback isn&apos;t available yet: the game&apos;s clip format is only partly understood.</p>
       <div className="browser-body">
-        <div className="loc-table-wrap bevel-in">
-          <table className="loc-table">
-            <thead>
-              <tr>
-                <th>Collection</th>
-                <th>Clip</th>
-                <th>Frames</th>
-                <th>Seconds</th>
-                <th>Data</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((c) => {
-                const { collection, clip: clipName } = splitName(c.name);
-                return (
-                  <tr key={c.index} className={c.index === chosen ? 'selected' : ''} data-clip={c.index} onClick={() => setChosen(c.index)} title={c.name}>
-                    <td className="loc-name">{collection}</td>
-                    <td className="loc-name">{clipName}</td>
-                    <td className="loc-num">{c.frames}</td>
-                    <td className="loc-num">{(c.frames / Math.max(1, c.fps)).toFixed(2)}</td>
-                    <td className="loc-name">{clipKind(c)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {data.value && (clip ? <ClipDetail key={clip.index} clip={clip} data={data.value} /> : <Collections data={data.value} />)}
+        {data.status === 'loading' && <PanelState variant="loading" title="Reading animations…" />}
+        {data.status === 'error' && <PanelState variant="error" title="Couldn't read this scene's animations" message={data.error} />}
+        {data.value && (
+          <DataTable
+            label="Animation clips"
+            className="browser-table"
+            columns={COLUMNS}
+            rows={shown}
+            rowKey={(c) => c.index}
+            selectedKey={chosen}
+            onSelect={setChosen}
+            emptyState={
+              <PanelState
+                variant="empty"
+                layout="inline"
+                title={filter ? `No clips match “${filter}”` : 'This scene has no clips'}
+                action={filter ? { label: 'Clear Filter', onClick: () => setFilter('') } : undefined}
+              />
+            }
+          />
+        )}
+        {data.value &&
+          (clip ? <ClipDetail key={clip.index} clip={clip} data={data.value} onBack={() => setChosen(null)} /> : <Collections data={data.value} />)}
       </div>
     </div>
   );

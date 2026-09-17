@@ -48,7 +48,7 @@ export interface MeshProgress {
 }
 
 export type Tab = 'scene' | 'textures' | 'localisation' | 'scripts' | 'animations';
-export type DialogName = 'gamePicker' | 'sceneOpen';
+export type DialogName = 'gamePicker' | 'sceneOpen' | 'settings';
 export type SelMode = 'Geom' | 'Group';
 
 export interface ViewportFilters {
@@ -77,9 +77,7 @@ export interface EditorState {
   filters: ViewportFilters;
   selMode: SelMode;
   sorting: 'Alpha' | 'None';
-  searchOpen: boolean;
   search: string;
-  menuOpen: string | null;
   statusMsg: string;
   undoStack: Command[];
   redoStack: Command[];
@@ -113,9 +111,7 @@ export function initialEditorState(): EditorState {
     filters: { lod: 0, show: { collision: false, bounds: false, shadow: false, placeholder: false, helper: false } },
     selMode: 'Geom',
     sorting: 'None',
-    searchOpen: false,
     search: '',
-    menuOpen: null,
     statusMsg: 'Connecting to the local server…',
     undoStack: [],
     redoStack: [],

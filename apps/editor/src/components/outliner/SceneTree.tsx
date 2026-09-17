@@ -1,11 +1,14 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Camera, Folder, FolderTree, Lightbulb, Lock, EyeOff, Shapes, type LucideIcon } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
+import type { SceneNodeDTO } from '@hbm/protocol';
 import {
   clearSelection,
+  expandSubtree,
   invertSelection,
   selectAll,
-  selectNext,
   selectNode,
+  selectRange,
   setAllExpanded,
   toggleExpanded,
   toggleFreezeSelection,
@@ -13,65 +16,34 @@ import {
   zoomSelected,
 } from '../../state/actions';
 import { useEditor } from '../../state/store';
-import { GroupHeader, Radio, TextButton } from '../chrome/widgets';
+import { Button, PanelState, RadioGroup, SearchField, Toolbar, Tree, type TreeItem } from '../../ui';
 import { buildTreeRows, type TreeRow } from './treeRows';
 
-const ROW_HEIGHT = 14;
-const OVERSCAN = 20;
+const KIND_ICONS: Record<SceneNodeDTO['kind'], LucideIcon> = {
+  room: Folder,
+  group: FolderTree,
+  mesh: Box,
+  light: Lightbulb,
+  camera: Camera,
+  other: Shapes,
+};
 
-function setSearch(open: boolean, text = '') {
+type Row = TreeRow & TreeItem<number>;
+
+function setSearch(text: string) {
   useEditor.getState().update((s) => {
-    s.searchOpen = open;
     s.search = text;
   });
 }
 
-interface RowProps {
-  row: TreeRow;
-  top: number;
-  selected: boolean;
-  hidden: boolean;
-  frozen: boolean;
-}
-
-function TreeRowView({ row, top, selected, hidden, frozen }: RowProps) {
-  const classes = ['tree-row', `kind-${row.kind}`];
-  if (selected) classes.push('selected');
-  if (frozen) classes.push('frozen');
-  if (hidden) classes.push('hidden');
-
-  return (
-    <div
-      className={classes.join(' ')}
-      style={{ position: 'absolute', top, left: 0, right: 0 }}
-      data-index={row.index}
-      onClick={(e) => selectNode(row.index, e.ctrlKey || e.metaKey)}
-      onDoubleClick={() => {
-        selectNode(row.index, false);
-        zoomSelected();
-      }}
-    >
-      <div style={{ width: row.depth * 11, flex: 'none' }} />
-      <div
-        className="tree-twisty"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (row.hasChildren) toggleExpanded(row.index);
-        }}
-      >
-        {row.hasChildren ? (row.expanded ? '−' : '+') : ''}
-      </div>
-      <div className="tree-name">{row.label}</div>
-      <div className="tree-flags">
-        {hidden ? 'H' : ''}
-        {frozen ? 'f' : ''}
-      </div>
-    </div>
-  );
+function setSorting(value: 'Alpha' | 'None') {
+  useEditor.getState().update((s) => {
+    s.sorting = value;
+  });
 }
 
 export function SceneTree() {
-  const { scene, sel, hidden, frozen, expanded, search, searchOpen, sorting } = useEditor(
+  const { scene, sel, hidden, frozen, expanded, search, sorting } = useEditor(
     useShallow((s) => ({
       scene: s.scene,
       sel: s.sel,
@@ -79,113 +51,126 @@ export function SceneTree() {
       frozen: s.frozen,
       expanded: s.expanded,
       search: s.search,
-      searchOpen: s.searchOpen,
       sorting: s.sorting,
     })),
   );
 
-  const rows = useMemo(
+  const rows = useMemo<Row[]>(
     () =>
-      scene ? buildTreeRows({ nodes: scene.graph.nodes, children: scene.children, expanded, search, sorting }) : [],
+      scene
+        ? buildTreeRows({ nodes: scene.graph.nodes, children: scene.children, expanded, search, sorting }).map((r) => ({ ...r, key: r.index }))
+        : [],
     [scene, expanded, search, sorting],
   );
+  const order = useMemo(() => rows.map((r) => r.index), [rows]);
   const selected = useMemo(() => new Set(sel), [sel]);
 
-  const listRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState({ top: 0, height: 400 });
-  useEffect(() => {
-    const list = listRef.current;
-    if (!list) return;
-    const measure = () => setView({ top: list.scrollTop, height: list.clientHeight });
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(list);
-    list.addEventListener('scroll', measure, { passive: true });
-    return () => {
-      observer.disconnect();
-      list.removeEventListener('scroll', measure);
-    };
-  }, []);
-
-  // Bring a selection made elsewhere (the viewport) into view.
+  // The keyboard cursor follows a selection made elsewhere, such as a viewport click.
+  const [focusKey, setFocusKey] = useState<number | null>(null);
+  const anchor = useRef<number | null>(null);
   const first = sel[0];
   useEffect(() => {
-    const list = listRef.current;
-    if (!list || first === undefined) return;
-    const at = rows.findIndex((r) => r.index === first);
-    if (at < 0) return;
-    const y = at * ROW_HEIGHT;
-    if (y < list.scrollTop || y + ROW_HEIGHT > list.scrollTop + list.clientHeight) {
-      list.scrollTop = Math.max(0, y - list.clientHeight / 2);
-    }
-    // Only when the selection changes, not on every scroll-driven re-render.
+    if (first !== undefined && !sel.includes(focusKey ?? -1)) setFocusKey(first);
+    // Only when the selection changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [first]);
 
-  const start = Math.max(0, Math.floor(view.top / ROW_HEIGHT) - OVERSCAN);
-  const end = Math.min(rows.length, Math.ceil((view.top + view.height) / ROW_HEIGHT) + OVERSCAN);
-
-  const setSorting = (value: 'Alpha' | 'None') =>
-    useEditor.getState().update((s) => {
-      s.sorting = value;
-    });
-
-  const sideButton = (label: string, onClick: () => void, active = false) => (
-    <TextButton key={label} label={label} active={active} className="tree-side-btn" onClick={onClick} />
-  );
+  const matchCount = search ? rows.length : null;
 
   return (
     <div className="tree-area">
-      <div className="tree-side">
-        <GroupHeader>Sorting</GroupHeader>
-        <Radio label="Alpha" checked={sorting === 'Alpha'} onSelect={() => setSorting('Alpha')} />
-        <Radio label="None" checked={sorting === 'None'} onSelect={() => setSorting('None')} />
-        <div className="select-hdr">Select</div>
-        {sideButton('All', selectAll)}
-        {sideButton('None', () => clearSelection())}
-        {sideButton('Invert', invertSelection)}
-        {sideButton('Search', () => setSearch(!searchOpen, search), searchOpen)}
-        {sideButton('Next', () => selectNext(rows.map((r) => r.index)))}
-        {sideButton('3D View', zoomSelected)}
-        {sideButton('Hide', toggleHideSelection)}
-        {sideButton('Freeze', toggleFreezeSelection)}
-        {sideButton('Expand', () => setAllExpanded(true))}
-        {sideButton('Collapse', () => setAllExpanded(false))}
-      </div>
+      <Toolbar label="Outliner" orientation="vertical" className="tree-side">
+        <Button variant="tool" disabled={!scene} onClick={selectAll}>
+          All
+        </Button>
+        <Button variant="tool" disabled={!sel.length} onClick={() => clearSelection()}>
+          None
+        </Button>
+        <Button variant="tool" disabled={!scene} onClick={invertSelection}>
+          Invert
+        </Button>
+        <Button variant="tool" disabled={!sel.length} onClick={zoomSelected}>
+          Frame
+        </Button>
+        <Button variant="tool" disabled={!sel.length} onClick={toggleHideSelection}>
+          Hide
+        </Button>
+        <Button variant="tool" disabled={!sel.length} onClick={toggleFreezeSelection}>
+          Freeze
+        </Button>
+        <Button variant="tool" disabled={!scene} onClick={() => setAllExpanded(true)}>
+          Expand
+        </Button>
+        <Button variant="tool" disabled={!scene} onClick={() => setAllExpanded(false)}>
+          Collapse
+        </Button>
+      </Toolbar>
 
       <div className="tree-panel bevel-in">
-        <div className="col-header">
-          <div className="col-object">Object</div>
-          <div className="col-icon">{scene ? scene.graph.nodes.length : ''}</div>
+        <div className="tree-header">
+          <SearchField
+            label="Filter objects by name"
+            placeholder="Filter objects"
+            value={search}
+            onChange={setSearch}
+            count={matchCount !== null ? `${matchCount} shown` : scene ? `${scene.graph.nodes.length} objects` : undefined}
+          />
+          <RadioGroup
+            label="Sort objects"
+            orientation="horizontal"
+            value={sorting}
+            options={[
+              { value: 'None', label: 'Scene order' },
+              { value: 'Alpha', label: 'A–Z' },
+            ]}
+            onChange={setSorting}
+          />
         </div>
-        {searchOpen && (
-          <div className="search-bar">
-            <input
-              className="sunken-input"
-              value={search}
-              placeholder="name filter"
-              autoFocus
-              onChange={(e) => setSearch(true, e.target.value)}
-            />
-            <div className="btn search-close" onClick={() => setSearch(false)}>
-              ✕
-            </div>
-          </div>
-        )}
-        <div className="tree-list" ref={listRef}>
-          <div style={{ position: 'relative', height: rows.length * ROW_HEIGHT }}>
-            {rows.slice(start, end).map((row, i) => (
-              <TreeRowView
-                key={row.index}
-                row={row}
-                top={(start + i) * ROW_HEIGHT}
-                selected={selected.has(row.index)}
-                hidden={!!hidden[row.index]}
-                frozen={!!frozen[row.index]}
+        <Tree<number, Row>
+          label="Scene objects"
+          className="tree-list"
+          items={rows}
+          selected={selected}
+          focusKey={focusKey}
+          onFocusChange={setFocusKey}
+          onToggle={toggleExpanded}
+          onExpandAll={expandSubtree}
+          onActivate={(index) => {
+            if (!selected.has(index)) selectNode(index, false);
+            zoomSelected();
+          }}
+          onSelect={(index, { toggle, range }) => {
+            if (range && anchor.current !== null) return selectRange(order, anchor.current, index);
+            anchor.current = index;
+            selectNode(index, toggle);
+          }}
+          itemClassName={(row) =>
+            [`kind-${row.kind}`, hidden[row.index] ? 'is-hidden' : '', frozen[row.index] ? 'is-frozen' : ''].filter(Boolean).join(' ')
+          }
+          renderItem={(row) => {
+            const Icon = KIND_ICONS[row.kind];
+            return (
+              <>
+                <Icon className="ui-icon tree-kind" aria-hidden="true" strokeWidth={1.75} />
+                <span className="ui-tree-label">{row.label}</span>
+                {hidden[row.index] && <EyeOff className="ui-icon tree-flag" aria-label="hidden" role="img" />}
+                {frozen[row.index] && <Lock className="ui-icon tree-flag" aria-label="frozen" role="img" />}
+              </>
+            );
+          }}
+          emptyState={
+            !scene ? (
+              <PanelState variant="empty" title="No scene open" message="Open a scene to list its objects." />
+            ) : search ? (
+              <PanelState
+                variant="empty"
+                layout="inline"
+                title={`No objects match “${search}”`}
+                action={{ label: 'Clear Filter', onClick: () => setSearch('') }}
               />
-            ))}
-          </div>
-        </div>
+            ) : null
+          }
+        />
       </div>
     </div>
   );

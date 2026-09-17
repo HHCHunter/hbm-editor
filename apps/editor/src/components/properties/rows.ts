@@ -87,12 +87,8 @@ export function buildPropRows(
   rows.push({ kind: 'text', label: 'TypeId', value: hex(node.typeId) });
 
   if (!detail || detail.node.index !== node.index) {
-    if (detailError) {
-      rows.push({ kind: 'group', label: "Couldn't read this object" });
-      rows.push({ kind: 'text', label: 'Reason', value: detailError });
-    } else {
-      rows.push({ kind: 'group', label: 'Loading…' });
-    }
+    // A failed read is shown by the grid, with a Retry button.
+    if (!detailError) rows.push({ kind: 'group', label: 'Loading…' });
     return rows;
   }
 

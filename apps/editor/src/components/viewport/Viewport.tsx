@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { pickFromViewport, setCamera } from '../../state/actions';
+import { openDialog, pickFromViewport, setCamera } from '../../state/actions';
 import { startUp } from '../../state/sceneLoader';
 import { useEditor, type EditorState } from '../../state/store';
 import { SceneRenderer } from '../../viewport/SceneRenderer';
-import { PushButton } from '../chrome/Dialog';
+import { PanelState } from '../../ui';
 import { ViewFlagBar } from './ViewFlagBar';
 
 /** The state the renderer draws from. Other changes, like status text or typing in a search, don't redraw. */
@@ -61,14 +61,24 @@ export function Viewport() {
             {progress.failed} of {progress.total} models couldn't be read
           </div>
         )}
-        {!hasScene && !loadingScene && server === 'unreachable' && (
-          <div className="viewport-empty interactive" role="alert">
-            <div>The editor's local server isn't running. Start the editor with start.bat, then try again.</div>
-            <PushButton label="Try Again" onClick={() => void startUp()} />
+        {!hasScene && !loadingScene && (
+          <div className="viewport-empty">
+            {server === 'unreachable' ? (
+              <PanelState
+                variant="offline"
+                title="The editor server isn't running"
+                message="Start the editor again with start.bat, then try again."
+                action={{ label: 'Try Again', onClick: () => void startUp() }}
+              />
+            ) : (
+              <PanelState
+                variant="empty"
+                title="No scene open"
+                message="Open a mission scene to see it here."
+                action={{ label: 'Open Scene…', onClick: () => openDialog('sceneOpen') }}
+              />
+            )}
           </div>
-        )}
-        {!hasScene && !loadingScene && server !== 'unreachable' && (
-          <div className="viewport-empty">No scene open · File › Open Scene… (Ctrl+O)</div>
         )}
         <div className="hud" ref={statsRef} />
       </div>

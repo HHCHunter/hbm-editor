@@ -28,6 +28,7 @@ interface Binding {
 
 const BINDINGS: Record<ActionId, Binding> = {
   'file.openScene': { run: () => openDialog('sceneOpen') },
+  'file.settings': { run: () => openDialog('settings') },
   'edit.undo': { run: () => useEditor.getState().undo() },
   'edit.redo': { run: () => useEditor.getState().redo() },
   'edit.hide': { run: toggleHideSelection, sceneOnly: true },
@@ -46,14 +47,7 @@ const BINDINGS: Record<ActionId, Binding> = {
 export function useShortcuts(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { update, dialog, tab } = useEditor.getState();
-      if (e.key === 'Escape') {
-        update((s) => {
-          s.menuOpen = null;
-          if (s.scene || s.dialog === 'sceneOpen') s.dialog = null;
-        });
-        return;
-      }
+      const { dialog, tab } = useEditor.getState();
       // Ctrl+Z and Ctrl+Y belong to the text field while typing.
       if (isTyping(e.target) || dialog) return;
 

@@ -3,9 +3,9 @@ import { useShallow } from 'zustand/react/shallow';
 import type { SceneNodeDTO } from '@hbm/protocol';
 import { drawsVariant } from '@hbm/scene';
 import { useEditor } from '../../state/store';
-import { PushButton } from '../chrome/Dialog';
 import { useNodeDetail } from '../../hooks/useNodeDetail';
 import { useAsync } from '../../hooks/useAsync';
+import { PanelState } from '../../ui';
 import { meshPartsOf } from '../../viewport/meshStore';
 import { skeletonFor } from '../../viewport/skeletonStore';
 import { buildPropRows, type PropRow } from './rows';
@@ -13,16 +13,20 @@ import { buildPropRows, type PropRow } from './rows';
 function PropRowView({ row }: { row: PropRow }) {
   if (row.kind === 'group') {
     return (
-      <div className="prop-row group">
-        <div className="prop-label">{row.label}</div>
+      <div className="prop-row group" role="row">
+        <div className="prop-label" role="rowheader" aria-colspan={2}>
+          {row.label}
+        </div>
       </div>
     );
   }
   return (
-    <div className="prop-row" title={row.title ?? `${row.label}: ${row.value}`}>
-      <div className="prop-label">{row.label}</div>
-      <div className="prop-value">
-        <input className="prop-input" value={row.value} readOnly />
+    <div className="prop-row" role="row" title={row.title}>
+      <div className="prop-label" role="rowheader">
+        {row.label}
+      </div>
+      <div className="prop-value" role="cell">
+        {row.value}
       </div>
     </div>
   );
@@ -50,18 +54,32 @@ export function PropertyGrid() {
 
   return (
     <div className="prop-panel bevel-in">
-      <div className="prop-header">
-        <div className="prop-header-name">Name</div>
-        <div className="prop-header-value">Value</div>
-      </div>
-      <div className="prop-list">
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region has to be focusable to scroll from the keyboard */}
+      <div className="prop-list" role="region" aria-label="Properties list" tabIndex={0}>
+        <div role="table" aria-label="Properties">
+        <div className="prop-header" role="row">
+          <div className="prop-header-name" role="columnheader">
+            Name
+          </div>
+          <div className="prop-header-value" role="columnheader">
+            Value
+          </div>
+        </div>
         {rows.map((row, i) => (
           <PropRowView key={`${sel[0]}:${i}:${row.label}`} row={row} />
         ))}
+        </div>
         {detailError && (
-          <div className="prop-retry">
-            <PushButton label="Retry" onClick={retry} />
-          </div>
+          <PanelState
+            variant="error"
+            layout="inline"
+            title="Couldn't read this object's properties"
+            message={detailError}
+            action={{ label: 'Retry', onClick: retry }}
+          />
+        )}
+        {!sel.length && scene && (
+          <PanelState variant="empty" layout="inline" title="Nothing selected" message="Click an object in the viewport or the outliner." />
         )}
       </div>
     </div>
