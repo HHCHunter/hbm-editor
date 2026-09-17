@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { buildApp } from './app';
+import { HttpError } from './http/HttpError';
 import { newSessionToken } from './security/sessionToken';
 import { VERSION } from './version';
 
@@ -55,7 +56,13 @@ async function main(): Promise<void> {
     console.warn(`The editor UI hasn't been built (${staticDir} is missing). Run: pnpm build`);
   }
 
-  const app = await buildApp({ port, token: newSessionToken(), staticDir });
+  let app;
+  try {
+    app = await buildApp({ port, token: newSessionToken(), staticDir, game: values.game });
+  } catch (err) {
+    if (err instanceof HttpError) fail(err.message);
+    throw err;
+  }
   try {
     await app.listen({ port, host: values.host });
   } catch (err) {
@@ -73,9 +80,7 @@ async function main(): Promise<void> {
   } else {
     console.log(`Editor running at ${url}`);
   }
-  if (values.game) {
-    console.log(`--game "${values.game}" noted; choosing a game install arrives in M1.`);
-  }
+  if (values.game) console.log(`Game: ${values.game}`);
   if (!values.dev && !values['no-open']) openBrowser(url);
 
   const shutdown = () => {

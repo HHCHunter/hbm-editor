@@ -121,9 +121,15 @@ importers:
       '@fastify/static':
         specifier: ^8.0.4
         version: 8.3.0
+      '@hbm/formats':
+        specifier: workspace:*
+        version: link:../formats
       '@hbm/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@hbm/scene':
+        specifier: workspace:*
+        version: link:../scene
       fastify:
         specifier: ^5.2.1
         version: 5.12.5

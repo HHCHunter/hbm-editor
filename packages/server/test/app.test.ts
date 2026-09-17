@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TOKEN_HEADER } from '@hbm/protocol';
@@ -8,13 +11,16 @@ const TOKEN = 'test-token-0123456789abcdef';
 const LOCAL = { host: `127.0.0.1:${PORT}` };
 
 let app: FastifyInstance;
+let dataDir: string;
 
 beforeAll(async () => {
-  app = await buildApp({ port: PORT, token: TOKEN });
+  dataDir = await mkdtemp(path.join(tmpdir(), 'hbm-guard-test-'));
+  app = await buildApp({ port: PORT, token: TOKEN, dataDir });
 });
 
 afterAll(async () => {
   await app.close();
+  await rm(dataDir, { recursive: true, force: true });
 });
 
 describe('host guard', () => {

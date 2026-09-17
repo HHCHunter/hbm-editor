@@ -7,11 +7,14 @@
     "dev": "tsx watch src/main.ts --no-open --dev",
     "start": "tsx src/main.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "smoke": "tsx scripts/smoke.ts"
   },
   "dependencies": {
     "@fastify/static": "^8.0.4",
+    "@hbm/formats": "workspace:*",
     "@hbm/protocol": "workspace:*",
+    "@hbm/scene": "workspace:*",
     "fastify": "^5.2.1",
     "tsx": "^4.19.2"
   },
