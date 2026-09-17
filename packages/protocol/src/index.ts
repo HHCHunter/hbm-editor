@@ -132,6 +132,33 @@ export interface PropertyTokenDTO {
   value: number | string;
 }
 
+/**
+ * One property of a record, typed from its class's property chain in the executable. The PC
+ * executable carries no property names, so properties are identified by class and position.
+ */
+export interface BoundPropertyDTO {
+  /** The class that registered it, e.g. "ZGEOM". */
+  owner: string;
+  /** 1-based position among the record's level-file properties. */
+  index: number;
+  type: string;
+  filter: number;
+  value: number | boolean | string | number[] | string[] | null;
+  /** For enums and bitfields: the enum type and its options. */
+  enumName: string | null;
+  options: string[] | null;
+}
+
+export interface RecordSchemaDTO {
+  /** The class whose chain was used, or null when none was found and only raw tokens are shown. */
+  className: string | null;
+  properties: BoundPropertyDTO[];
+  /** Class-specific data after the reflected properties (ScriptC variables, for one). */
+  tailTokens: number;
+  /** Why binding stopped early, if it did. */
+  mismatch: string | null;
+}
+
 export interface NodeDetailDTO {
   node: SceneNodeDTO;
   gms: {
@@ -148,7 +175,9 @@ export interface NodeDetailDTO {
   /** World transform, TRANSFORM_STRIDE numbers. */
   transform: number[];
   properties: PropertyTokenDTO[];
-  controllers: { name: string; properties: PropertyTokenDTO[] }[];
+  /** Null when the executable couldn't be read for schemas. */
+  schema: RecordSchemaDTO | null;
+  controllers: { name: string; properties: PropertyTokenDTO[]; schema: RecordSchemaDTO | null }[];
 }
 
 export interface SurfaceDTO {

@@ -59,6 +59,44 @@ export class PeImage {
     return this.rvaToOffset(va - this.imageBase);
   }
 
+  section(name: string): PeSection | null {
+    return this.sections.find((s) => s.name === name) ?? null;
+  }
+
+  /** The dword at a virtual address, or null if no file bytes back it. */
+  u32AtVa(va: number): number | null {
+    const offset = this.vaToOffset(va);
+    return offset === null || offset + 4 > this.data.length ? null : u32At(this.data, offset);
+  }
+
+  /** `length` file bytes at a virtual address, or null if they aren't all stored in one section. */
+  bytesAtVa(va: number, length: number): Uint8Array | null {
+    const offset = this.vaToOffset(va);
+    const end = offset === null ? null : this.vaToOffset(va + length - 1);
+    if (offset === null || end === null || end !== offset + length - 1) return null;
+    return this.data.subarray(offset, offset + length);
+  }
+
+  /** Exported functions by ordinal, as relative virtual addresses. */
+  exportsByOrdinal(): Map<number, number> {
+    const exports = new Map<number, number>();
+    const pe = u32At(this.data, 0x3c);
+    const optional = pe + 24;
+    // Data directory 0 (exports) sits at optional-header offset 96 in a PE32 image.
+    if (u32At(this.data, optional + 92) < 1) return exports;
+    const dir = this.rvaToOffset(u32At(this.data, optional + 96));
+    if (dir === null) return exports;
+    const base = u32At(this.data, dir + 16);
+    const count = u32At(this.data, dir + 20);
+    const functions = this.rvaToOffset(u32At(this.data, dir + 28));
+    if (functions === null) return exports;
+    for (let i = 0; i < count; i++) {
+      const rva = u32At(this.data, functions + i * 4);
+      if (rva) exports.set(base + i, rva);
+    }
+    return exports;
+  }
+
   /** The NUL-terminated bytes at a virtual address, or null if unmapped or longer than `maxLength`. */
   cstringAtVa(va: number, maxLength = 256): Uint8Array | null {
     const offset = this.vaToOffset(va);

@@ -54,6 +54,20 @@ export {
 export { readGeomHead, type PrpGeomHead } from './prp/geomHead';
 
 export { PeImage, type PeSection } from './pe/PeImage';
+export { demangleTypeName, findPrimaryVtables, type VtableIndex } from './pe/msvcRtti';
+export { PROPERTY_LOADERS, type PropertyShape, type PropertyType } from './rtp/propertyTypes';
+export {
+  inLevelFiles,
+  readEnumInfo,
+  readPropertyChain,
+  type EnumInfo,
+  type EnumOption,
+  type PropertyLevel,
+  type PropertyRecord,
+} from './rtp/propertyChain';
+export { findControllerClasses, namesAgree, type ControllerClass } from './rtp/factories';
+export { resolveSchemas, type ClassSchema, type SchemaLevel, type SchemaRegistry } from './rtp/schemas';
+export { bindRecord, type BoundProperty, type BoundRecord, type BoundValue } from './rtp/bindRecord';
 export {
   HARVESTED_REGISTRATIONS,
   geomFamily,

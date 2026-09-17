@@ -12,6 +12,7 @@ export {
   type SceneNode,
 } from './graph';
 export { drawsVariant, lodLevels, meshParts, type MeshPart } from './parts';
+export { bindNodeProperties, type NodeProperties, type RecordBinding } from './properties';
 export {
   DRAW_MODE_NOT_A_SURFACE,
   describeSurface,

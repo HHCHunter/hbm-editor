@@ -116,9 +116,9 @@ export class PrpCursor {
         // Enums travel by name when the stream carries text (the enum reader 0x00057930).
         return this.flags & PRP_TEXT ? this.text(offset, marker, 'enum') : token('enum', r.u32());
       case 0x0f: {
+        // A bitfield: a count, then that many u32 string-table indices of the set flags' names.
         const count = r.u32();
-        r.skip(count * 4);
-        return token('type13', count);
+        return token('type13', count, r.take(count * 4));
       }
       case 0x7c:
         return token('endArray');

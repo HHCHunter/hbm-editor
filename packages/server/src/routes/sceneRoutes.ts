@@ -11,6 +11,7 @@ import {
 } from '@hbm/formats';
 import type {
   NodeDetailDTO,
+  RecordSchemaDTO,
   PropertyTokenDTO,
   SceneGraphDTO,
   SceneSummaryDTO,
@@ -18,7 +19,7 @@ import type {
   TextureDTO,
 } from '@hbm/protocol';
 import { TRANSFORM_STRIDE } from '@hbm/protocol';
-import { encodeMeshPack } from '@hbm/scene';
+import { bindNodeProperties, encodeMeshPack, type RecordBinding } from '@hbm/scene';
 import type { GameService } from '../game/GameService';
 import { HttpError, optionalInt, requireInt, requireString } from '../http/HttpError';
 import { encodePng } from '../images/png';
@@ -37,6 +38,25 @@ function tokenDTO(token: PrpToken, tree: PrpTree): PropertyTokenDTO {
   if (token.interned) value = tree.strings[token.value] ?? token.value;
   else if (token.bytes && (token.kind === 'string' || token.kind === 'enum')) value = decodeText(token.bytes);
   return { offset: token.offset, kind: token.kind, value };
+}
+
+function schemaDTO({ className, bound }: RecordBinding): RecordSchemaDTO {
+  return {
+    className,
+    properties: (bound?.properties ?? []).map((p) => ({
+      owner: p.owner,
+      index: p.index,
+      type: p.type,
+      filter: p.filter,
+      value: p.value,
+      enumName: p.enumInfo?.name ?? null,
+      options: p.enumInfo ? p.enumInfo.options.map((o) => o.name) : null,
+    })),
+    tailTokens: bound?.tail.length ?? 0,
+    mismatch: bound?.mismatch
+      ? `property ${bound.mismatch.index}: expected ${bound.mismatch.expected}, found ${bound.mismatch.found}`
+      : null,
+  };
 }
 
 export function registerSceneRoutes(app: FastifyInstance, game: GameService): void {
@@ -76,6 +96,7 @@ export function registerSceneRoutes(app: FastifyInstance, game: GameService): vo
   app.get<{ Querystring: Query }>('/api/scene/node', async (req): Promise<NodeDetailDTO> => {
     const id = requireString(req.query, 'scene');
     const index = requireInt(req.query, 'index');
+    const schemas = await game.schemas();
     return game.withScene(id, async (scene) => {
       const [graph, gms, prp] = await Promise.all([scene.graph(), scene.archive.gms(), scene.archive.prp()]);
       const node = graph.nodes[index];
@@ -84,6 +105,7 @@ export function registerSceneRoutes(app: FastifyInstance, game: GameService): vo
       const prpNode = prp.tree.nodes.length - 1 === gms.geoms.length ? prp.tree.nodes[index + 1] : undefined;
       const tokens = (record: { start: number; end: number }) =>
         readRecordTokens(prp.data, prp.tree, record).map((t) => tokenDTO(t, prp.tree));
+      const bound = prpNode && schemas ? bindNodeProperties(prp, index, node.className, schemas) : null;
       return {
         node,
         gms: {
@@ -99,7 +121,14 @@ export function registerSceneRoutes(app: FastifyInstance, game: GameService): vo
         },
         transform: Array.from(graph.transforms.subarray(index * TRANSFORM_STRIDE, (index + 1) * TRANSFORM_STRIDE)),
         properties: prpNode ? tokens(prpNode.record) : [],
-        controllers: prpNode ? prpNode.controllers.map((c) => ({ name: c.name, properties: tokens(c.record) })) : [],
+        schema: bound ? schemaDTO(bound.node) : null,
+        controllers: prpNode
+          ? prpNode.controllers.map((c, i) => ({
+              name: c.name,
+              properties: tokens(c.record),
+              schema: bound?.controllers[i] ? schemaDTO(bound.controllers[i]!) : null,
+            }))
+          : [],
       };
     });
   });

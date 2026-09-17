@@ -16,7 +16,7 @@ function PropRowView({ row }: { row: PropRow }) {
     );
   }
   return (
-    <div className="prop-row" title={`${row.label}: ${row.value}`}>
+    <div className="prop-row" title={row.title ?? `${row.label}: ${row.value}`}>
       <div className="prop-label">{row.label}</div>
       <div className="prop-value">
         <input className="prop-input" value={row.value} readOnly />

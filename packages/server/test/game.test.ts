@@ -114,7 +114,14 @@ describe('scenes', () => {
   it("describes a node's properties and controllers", async () => {
     const detail = await json<NodeDetailDTO>(scene('node', '&index=0'));
     expect(detail.properties[0]).toMatchObject({ kind: 'enum', value: 'STATIC' });
-    expect(detail.controllers).toEqual([{ name: 'TimeOutDelete', properties: [expect.objectContaining({ kind: 'u32', value: 5 })] }]);
+    // The fake executable has no RTTI, so there are no property chains to type the records with.
+    expect(detail.controllers).toEqual([
+      {
+        name: 'TimeOutDelete',
+        properties: [expect.objectContaining({ kind: 'u32', value: 5 })],
+        schema: { className: null, properties: [], tailTokens: 0, mismatch: null },
+      },
+    ]);
     expect((await get(scene('node', '&index=9'))).statusCode).toBe(404);
   });
 

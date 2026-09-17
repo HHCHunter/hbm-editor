@@ -2,10 +2,11 @@ import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { PeImage, resolveClassRegistry, type ClassRegistry } from '@hbm/formats';
+import { PeImage, resolveClassRegistry, resolveSchemas, type ClassRegistry } from '@hbm/formats';
 import { nodeCodec, openFileSource, resolveGameDir } from '@hbm/formats/node';
 import {
   SceneArchive,
+  bindNodeProperties,
   buildSceneGraph,
   decodeMeshPack,
   describeSurface,
@@ -34,9 +35,12 @@ if (!gameDir) {
 }
 
 const exe = path.join(gameDir, 'HitmanBloodMoney.exe');
-const registry: ClassRegistry | undefined = existsSync(exe)
-  ? resolveClassRegistry(new PeImage(new Uint8Array(await readFile(exe))))
-  : undefined;
+const exeImage = existsSync(exe) ? new PeImage(new Uint8Array(await readFile(exe))) : null;
+const registry: ClassRegistry | undefined = exeImage ? resolveClassRegistry(exeImage) : undefined;
+const schemas = exeImage ? resolveSchemas(exeImage) : null;
+const binding = { bound: 0, withTail: 0, mismatched: 0, noSchema: 0 };
+const tailClasses = new Set<string>();
+const noSchemaClasses = new Set<string>();
 
 const scenesDir = path.join(gameDir, 'Scenes');
 const zips = (await readdir(scenesDir, { recursive: true })).filter((f) => /\.zip$/i.test(f)).sort();
@@ -71,6 +75,29 @@ for (const relative of zips) {
 
     nodes += graph.nodes.length;
     for (const n of graph.nodes) kinds[n.kind]++;
+
+    // Every geom and controller record binds to its class's property chain from the executable.
+    if (schemas && prp.tree.nodes.length - 1 === gms.geoms.length) {
+      for (const n of graph.nodes) {
+        const props = bindNodeProperties(prp, n.index, n.className, schemas);
+        if (!props) continue;
+        const records = [{ label: n.className ?? `type ${n.typeId}`, ...props.node }, ...props.controllers.map((c) => ({ label: c.name, ...c }))];
+        for (const r of records) {
+          if (!r.bound) {
+            binding.noSchema++;
+            noSchemaClasses.add(r.label);
+          } else if (r.bound.mismatch) {
+            binding.mismatched++;
+            failures.push(`${scene} node ${n.index} ${r.label}: property ${r.bound.mismatch.index} expected ${r.bound.mismatch.expected}, found ${r.bound.mismatch.found}`);
+          } else if (r.bound.tail.length) {
+            binding.withTail++;
+            tailClasses.add(r.label);
+          } else {
+            binding.bound++;
+          }
+        }
+      }
+    }
 
     const surfaces = new Map<number, Surface>();
     const surfaceFor = (slot: number) => {
@@ -127,6 +154,14 @@ console.log(`scenes          ${zips.length}`);
 console.log(`nodes           ${nodes}  ${JSON.stringify(kinds)}${registry ? '' : ' (no executable: kinds from type-id families)'}`);
 console.log(`placed roots    ${placedRoots}; parts ${parts}; triangles ${triangles}`);
 console.log(`parts by hidden reason ${JSON.stringify(hidden)}; without a known layout or material ${unshaded}`);
+if (schemas) {
+  console.log(
+    `PRP records     ${binding.bound} bound; ${binding.withTail} with class-specific tails (${[...tailClasses].join(', ')}); ` +
+      `${binding.mismatched} mismatched; ${binding.noSchema} without a schema${noSchemaClasses.size ? ` (${[...noSchemaClasses].join(', ')})` : ''}`,
+  );
+  // Only ScriptC is known to append its own data after the reflected properties.
+  for (const c of tailClasses) if (c !== 'ScriptC') failures.push(`${c} records have unexplained trailing tokens`);
+}
 
 if (failures.length) {
   console.log(`\n${failures.length} check(s) failed:`);

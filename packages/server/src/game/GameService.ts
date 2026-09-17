@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { PeImage, resolveClassRegistry, type ClassRegistry } from '@hbm/formats';
+import { PeImage, resolveClassRegistry, resolveSchemas, type ClassRegistry, type SchemaRegistry } from '@hbm/formats';
 import { nodeCodec, openFileSource, resolveGameDir } from '@hbm/formats/node';
 import type { SceneListItemDTO } from '@hbm/protocol';
 import { SceneArchive } from '@hbm/scene';
@@ -21,7 +21,9 @@ export class GameService {
   private readonly store: ConfigStore;
   root: string | null = null;
   private catalog: Promise<Map<string, SceneFile>> | null = null;
+  private exePromise: Promise<PeImage | null> | null = null;
   private registryPromise: Promise<ClassRegistry | null> | null = null;
+  private schemasPromise: Promise<SchemaRegistry | null> | null = null;
   /** Least recently used first. */
   private readonly open = new Map<string, { scene: Promise<LoadedScene>; users: number; evicted: boolean }>();
 
@@ -59,7 +61,9 @@ export class GameService {
     await this.closeScenes();
     this.root = root;
     this.catalog = null;
+    this.exePromise = null;
     this.registryPromise = null;
+    this.schemasPromise = null;
     await this.store.write({ gameRoot: root });
     return root;
   }
@@ -86,19 +90,38 @@ export class GameService {
     return this.catalog;
   }
 
-  /** Class names from the executable, or null when it's missing or unreadable. */
-  classRegistry(): Promise<ClassRegistry | null> {
-    this.registryPromise ??= (async () => {
+  /** The parsed executable, or null when it's missing or unreadable. */
+  private exeImage(): Promise<PeImage | null> {
+    this.exePromise ??= (async () => {
       const exe = this.exePath();
       if (!exe) return null;
       try {
-        const registry = resolveClassRegistry(new PeImage(new Uint8Array(await readFile(exe))));
-        return registry.byTypeId.size ? registry : null;
+        return new PeImage(new Uint8Array(await readFile(exe)));
       } catch {
         return null;
       }
     })();
+    return this.exePromise;
+  }
+
+  /** Class names from the executable, or null when it's missing or unreadable. */
+  classRegistry(): Promise<ClassRegistry | null> {
+    this.registryPromise ??= (async () => {
+      const image = await this.exeImage();
+      if (!image) return null;
+      const registry = resolveClassRegistry(image);
+      return registry.byTypeId.size ? registry : null;
+    })();
     return this.registryPromise;
+  }
+
+  /** Property chains from the executable, or null when it can't be read. */
+  schemas(): Promise<SchemaRegistry | null> {
+    this.schemasPromise ??= (async () => {
+      const image = await this.exeImage();
+      return image ? resolveSchemas(image) : null;
+    })();
+    return this.schemasPromise;
   }
 
   /**
