@@ -4,6 +4,7 @@ import {
   decodeTexLevel,
   firstLevelWithData,
   readRecordTokens,
+  readSkeleton,
   scriptCreatorKey,
   textureStages,
   TEX_FLAG_CUBEMAP,
@@ -16,6 +17,7 @@ import type {
   PropertyTokenDTO,
   SceneGraphDTO,
   SceneSummaryDTO,
+  SkeletonDTO,
   SurfaceDTO,
   TextureDTO,
 } from '@hbm/protocol';
@@ -158,6 +160,19 @@ export function registerSceneRoutes(app: FastifyInstance, game: GameService): vo
       return encodeMeshPack(prm, parts);
     });
     return sendBytes(reply, bytes);
+  });
+
+  app.get<{ Querystring: Query }>('/api/scene/skeleton', async (req): Promise<SkeletonDTO> => {
+    const id = requireString(req.query, 'scene');
+    const root = requireInt(req.query, 'root');
+    return game.withScene(id, async (scene) => {
+      const skeleton = readSkeleton(await scene.archive.prm(), root);
+      if (!skeleton) throw new HttpError(404, `${id} model ${root} has no skeleton`);
+      return {
+        root,
+        bones: skeleton.bones.map(({ index, name, parent, id: boneId, bodyPart, global }) => ({ index, name, parent, id: boneId, bodyPart, global })),
+      };
+    });
   });
 
   app.get<{ Querystring: Query }>('/api/scene/surfaces', async (req): Promise<SurfaceDTO[]> => {

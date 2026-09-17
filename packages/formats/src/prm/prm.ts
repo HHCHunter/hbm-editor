@@ -21,6 +21,8 @@ export const PRIM_TYPE = {
 
 /** SPrimMeshWeighted's subtype: skinned against a bone palette. */
 export const PRIM_SUBTYPE_WEIGHTED = 3;
+/** A mesh attached rigidly to one bone. */
+export const PRIM_SUBTYPE_RIGID = 2;
 
 export interface PrmDescriptor {
   offset: number;
@@ -74,6 +76,12 @@ export interface PrimMesh {
   frameStep: number;
   /** SPrimStaticShadowMesh is 0x7C bytes, stored in an 0x80-byte descriptor. */
   staticShadow: boolean;
+  /**
+   * SPrimMeshWeighted (0x40 bytes) adds +0x38 lNumCopyBones and +0x3C lCopyBones: for subtype 3 the
+   * run count and the runs' descriptor, for subtype 2 (rigid attachment) the bone index itself.
+   */
+  numCopyBones: number;
+  copyBones: number;
 }
 
 export interface PrimSubMesh {
@@ -213,14 +221,38 @@ export class PrmFile {
   mesh(object: PrimObject): PrimMesh | null {
     if (object.type !== PRIM_TYPE.MESH || object.descriptorSize < 0x38) return null;
     const o = this.descriptors[object.index]!.offset;
+    const staticShadow = object.descriptorSize === 0x80;
+    const skinned = !staticShadow && object.descriptorSize >= 0x40 && (object.subType === PRIM_SUBTYPE_WEIGHTED || object.subType === PRIM_SUBTYPE_RIGID);
     return {
       object,
       subMeshTable: u32At(this.data, o + 0x28),
       numFrames: Math.max(1, u32At(this.data, o + 0x2c)),
       frameStart: u16At(this.data, o + 0x30),
       frameStep: u16At(this.data, o + 0x32),
-      staticShadow: object.descriptorSize === 0x80,
+      staticShadow,
+      numCopyBones: skinned ? u32At(this.data, o + 0x38) : 0,
+      copyBones: skinned ? u32At(this.data, o + 0x3c) : 0,
     };
+  }
+
+  /**
+   * The bones a skinned mesh's blend indices address, in palette order. Subtype 3 stores runs of
+   * { u32 count*12, u32 first*12 } (float-word units: 12 floats per matrix), which the binder at
+   * 0x00092570 copies in order; subtype 2 names one bone inline.
+   */
+  bonePalette(mesh: PrimMesh): number[] {
+    const { subType } = mesh.object;
+    if (subType === PRIM_SUBTYPE_RIGID) return [mesh.copyBones];
+    if (subType !== PRIM_SUBTYPE_WEIGHTED) return [];
+    const runs = this.descriptor(mesh.copyBones);
+    if (!runs) return [];
+    const palette: number[] = [];
+    for (let i = 0; i < mesh.numCopyBones && (i + 1) * 8 <= runs.size; i++) {
+      const count = u32At(this.data, runs.offset + i * 8) / 12;
+      const first = u32At(this.data, runs.offset + i * 8 + 4) / 12;
+      for (let k = 0; k < count; k++) palette.push(first + k);
+    }
+    return palette;
   }
 
   /**

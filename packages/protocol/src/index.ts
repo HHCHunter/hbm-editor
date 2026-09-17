@@ -107,6 +107,24 @@ export interface MeshRootDTO {
   variants: number[];
   hiddenReasons: HiddenReasonDTO[];
   weighted: boolean;
+  /** Bones in the model's skeleton, or 0 when it has none. */
+  bones: number;
+}
+
+export interface BoneDTO {
+  index: number;
+  name: string;
+  /** Parent bone index, or -1 for the root. */
+  parent: number;
+  id: number;
+  bodyPart: number;
+  /** Model-space bind transform: row-major 3x3 acting on column vectors, then the translation. */
+  global: number[];
+}
+
+export interface SkeletonDTO {
+  root: number;
+  bones: BoneDTO[];
 }
 
 export interface ScenePropertyDTO {

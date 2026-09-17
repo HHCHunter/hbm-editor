@@ -6,6 +6,7 @@ import { effectiveFlags, meshNodeIndices, positionBounds, TRANSFORM } from '../s
 import type { CameraState, EditorState, LoadedScene } from '../state/store';
 import { VERTICAL_FOV_DEG, cameraBasis, orbit, pan, zoom } from './camera';
 import { loadSceneMeshes, meshPartsOf, type MeshLoad, type MeshPartData } from './meshStore';
+import { keepSkeletonsFor, skeletonFor } from './skeletonStore';
 
 export interface RendererCallbacks {
   onCamera: (cam: CameraState) => void;
@@ -18,6 +19,7 @@ export interface RendererCallbacks {
 /** Largest texture edge uploaded; bigger textures use a smaller mip level. */
 const MAX_TEXTURE_EDGE = 1024;
 const MAX_HIGHLIGHTS = 256;
+const MAX_SKELETONS = 400;
 const DRAG_THRESHOLD = 4;
 const CLEAR_COLOR = 0x1c1c1c;
 
@@ -47,6 +49,8 @@ export class SceneRenderer {
   private readonly world = new THREE.Group();
   private readonly models = new THREE.Group();
   private readonly overlays = new THREE.Group();
+  private readonly skeletons = new THREE.Group();
+  private skeletonGeneration = 0;
   private readonly sun = new THREE.DirectionalLight(0xffffff, 1.6);
   private readonly resizeObserver: ResizeObserver;
 
@@ -79,7 +83,7 @@ export class SceneRenderer {
     host.appendChild(this.renderer.domElement);
 
     this.world.scale.set(1, 1, -1);
-    this.world.add(this.models, this.overlays);
+    this.world.add(this.models, this.overlays, this.skeletons);
     this.scene.add(this.world);
     this.scene.add(new THREE.HemisphereLight(0xdfe6ee, 0x3a3630, 1.4));
     this.scene.add(this.camera);
@@ -116,6 +120,9 @@ export class SceneRenderer {
       this.frozenNodes = state.scene ? effectiveFlags(state.scene.graph.nodes, state.frozen) : new Uint8Array(0);
     }
     if (!prev || prev.sel !== state.sel || prev.hidden !== state.hidden) this.buildHighlights();
+    if (!prev || prev.sel !== state.sel || prev.hidden !== state.hidden || prev.view.Bn !== state.view.Bn || prev.scene !== state.scene) {
+      this.buildSkeletons();
+    }
     this.needsRender = true;
   }
 
@@ -123,9 +130,11 @@ export class SceneRenderer {
     this.load?.cancel();
     this.load = null;
     this.clearModels();
+    this.clearSkeletons();
     this.loaded = scene;
     this.textureInfo = null;
     if (!scene) return;
+    keepSkeletonsFor(scene.id);
 
     const placed = new Map<number, number[]>();
     for (const node of scene.graph.nodes) {
@@ -440,6 +449,54 @@ export class SceneRenderer {
         cross.matrix.copy(m);
         this.overlays.add(cross);
       }
+    }
+  }
+
+  private clearSkeletons(): void {
+    for (const child of [...this.skeletons.children]) {
+      this.skeletons.remove(child);
+      if (child instanceof THREE.LineSegments) {
+        child.geometry.dispose();
+        (child.material as THREE.Material).dispose();
+      }
+    }
+  }
+
+  /** Bind-pose bones for the selected characters, or for every character with the Bn flag. */
+  private buildSkeletons(): void {
+    const generation = ++this.skeletonGeneration;
+    this.clearSkeletons();
+    const scene = this.loaded;
+    const state = this.state;
+    if (!scene || !state) return;
+
+    const skinned = (index: number) => {
+      const node = scene.graph.nodes[index];
+      return !!node?.meshRoot && (scene.roots[node.meshRoot]?.bones ?? 0) > 0 && !this.hiddenNodes[index];
+    };
+    const wanted = (state.view.Bn ? scene.graph.nodes.map((n) => n.index) : state.sel).filter(skinned).slice(0, MAX_SKELETONS);
+
+    for (const index of wanted) {
+      const root = scene.graph.nodes[index]!.meshRoot;
+      void skeletonFor(scene.id, root).then((skeleton) => {
+        if (!skeleton || generation !== this.skeletonGeneration || this.loaded !== scene) return;
+        const points: number[] = [];
+        for (const bone of skeleton.bones) {
+          const parent = skeleton.bones[bone.parent];
+          // The root bone (GROUND) is the placement origin, not a joint: its links to PELVIS and to
+          // camera_bone (in front of the head) would draw as lines through and beside the body.
+          if (!parent || parent.parent < 0) continue;
+          points.push(parent.global[9]!, parent.global[10]!, parent.global[11]!, bone.global[9]!, bone.global[10]!, bone.global[11]!);
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+        const lines = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0x40e0ff, depthTest: false }));
+        lines.renderOrder = 2;
+        lines.matrixAutoUpdate = false;
+        nodeMatrix(scene.transforms, index, lines.matrix);
+        this.skeletons.add(lines);
+        this.needsRender = true;
+      });
     }
   }
 

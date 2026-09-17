@@ -16,6 +16,7 @@ export const VIEW_FLAG_TITLES = {
   L: 'Left',
   R: 'Right',
   G: 'Grid',
+  Bn: 'Skeletons',
 } as const;
 export type ViewFlag = keyof typeof VIEW_FLAG_TITLES;
 export const VIEW_FLAGS = Object.keys(VIEW_FLAG_TITLES) as ViewFlag[];
@@ -112,7 +113,7 @@ export function initialEditorState(): EditorState {
     frozen: {},
     expanded: {},
     cam: { ...DEFAULT_CAMERA },
-    view: { W: false, P: false, Li: true, Tx: true, F: false, K: false, T: false, B: false, L: false, R: false, G: true },
+    view: { W: false, P: false, Li: true, Tx: true, F: false, K: false, T: false, B: false, L: false, R: false, G: true, Bn: false },
     filters: { lod: 0, show: { collision: false, bounds: false, shadow: false, placeholder: false, helper: false } },
     selMode: 'Geom',
     gizmoKind: 'Lights',

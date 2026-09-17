@@ -1,4 +1,12 @@
-import type { BoundPropertyDTO, NodeDetailDTO, PropertyTokenDTO, RecordSchemaDTO, SceneNodeDTO, SurfaceDTO } from '@hbm/protocol';
+import type {
+  BoundPropertyDTO,
+  NodeDetailDTO,
+  PropertyTokenDTO,
+  RecordSchemaDTO,
+  SceneNodeDTO,
+  SkeletonDTO,
+  SurfaceDTO,
+} from '@hbm/protocol';
 import { formatNumber } from '../../state/actions';
 
 /** A read-only property grid row. */
@@ -60,6 +68,7 @@ export function buildPropRows(
   detail: NodeDetailDTO | null,
   surfaces: Readonly<Record<number, SurfaceDTO>>,
   meshParts: readonly { materialSlot: number }[] | null,
+  skeleton: SkeletonDTO | null = null,
 ): PropRow[] {
   const rows: PropRow[] = [];
 
@@ -124,6 +133,19 @@ export function buildPropRows(
     } else {
       rows.push({ kind: 'group', label: controller.name });
       rows.push(...tokenRows(controller.properties));
+    }
+  }
+
+  if (skeleton && skeleton.root === node.meshRoot) {
+    rows.push({ kind: 'group', label: `Skeleton (${skeleton.bones.length} bones)` });
+    for (const bone of skeleton.bones) {
+      const parent = skeleton.bones[bone.parent];
+      rows.push({
+        kind: 'text',
+        label: `#${bone.index} ${bone.name}`,
+        value: parent ? `parent ${parent.name}` : 'root',
+        title: `id ${bone.id}, body part ${bone.bodyPart}`,
+      });
     }
   }
   return rows;

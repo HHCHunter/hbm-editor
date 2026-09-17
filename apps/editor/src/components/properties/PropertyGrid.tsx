@@ -4,7 +4,9 @@ import type { SceneNodeDTO } from '@hbm/protocol';
 import { drawsVariant } from '@hbm/scene';
 import { useEditor } from '../../state/store';
 import { useNodeDetail } from '../../hooks/useNodeDetail';
+import { useAsync } from '../../hooks/useAsync';
 import { meshPartsOf } from '../../viewport/meshStore';
+import { skeletonFor } from '../../viewport/skeletonStore';
 import { buildPropRows, type PropRow } from './rows';
 
 function PropRowView({ row }: { row: PropRow }) {
@@ -30,6 +32,10 @@ export function PropertyGrid() {
   const detail = useNodeDetail();
   const meshProgress = useEditor((s) => s.meshProgress);
 
+  const skeletonRoot = scene && sel.length === 1 ? (scene.graph.nodes[sel[0]!]?.meshRoot ?? 0) : 0;
+  const hasSkeleton = !!scene && (scene.roots[skeletonRoot]?.bones ?? 0) > 0;
+  const skeleton = useAsync(scene && hasSkeleton ? () => skeletonFor(scene.id, skeletonRoot) : null, [scene?.id, skeletonRoot, hasSkeleton]);
+
   const rows = useMemo(() => {
     if (!scene) return [];
     const nodes = sel.map((i) => scene.graph.nodes[i]).filter((n): n is SceneNodeDTO => !!n);
@@ -37,9 +43,9 @@ export function PropertyGrid() {
     const parts = one?.meshRoot
       ? (meshPartsOf(scene.id, one.meshRoot)?.filter((p) => drawsVariant(one.variantId, p.variantId)) ?? null)
       : null;
-    return buildPropRows(nodes, detail, scene.surfaces, parts);
+    return buildPropRows(nodes, detail, scene.surfaces, parts, skeleton.value ?? null);
     // meshProgress: the model's parts may arrive after the selection.
-  }, [scene, sel, detail, meshProgress]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scene, sel, detail, meshProgress, skeleton.value]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="prop-panel bevel-in">

@@ -2,7 +2,17 @@ import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { PeImage, resolveClassRegistry, resolveSchemas, type ClassRegistry } from '@hbm/formats';
+import {
+  PRIM_SUBTYPE_RIGID,
+  PeImage,
+  VERTEX_LAYOUTS,
+  composeTransforms,
+  decodeVertices,
+  readSkeleton,
+  resolveClassRegistry,
+  resolveSchemas,
+  type ClassRegistry,
+} from '@hbm/formats';
 import { nodeCodec, openFileSource, resolveGameDir } from '@hbm/formats/node';
 import {
   SceneArchive,
@@ -53,6 +63,7 @@ let placedRoots = 0;
 let parts = 0;
 let triangles = 0;
 let unshaded = 0;
+const skin = { skeletons: 0, composed: 0, notComposed: 0, badPalettes: 0, vertices: 0, outsidePalette: 0, distance: 0 };
 
 for (const relative of zips) {
   const scene = relative.replace(/\\/g, '/').replace(/\.zip$/i, '');
@@ -117,6 +128,45 @@ for (const relative of zips) {
     for (const root of roots) {
       const rootParts = meshParts(prm, mat, root);
       scenePartsByRoot.set(root, rootParts);
+
+      // Skinned models: a skeleton whose bind matrices compose, and blend data that addresses it.
+      const skinned = rootParts.filter((p) => p.weighted || p.subMesh.mesh.object.subType === PRIM_SUBTYPE_RIGID);
+      if (skinned.length) {
+        const skeleton = readSkeleton(prm, root);
+        if (!skeleton) {
+          failures.push(`${scene} root ${root}: skinned parts but no skeleton`);
+        } else {
+          skin.skeletons++;
+          for (const bone of skeleton.bones) {
+            const parent = skeleton.bones[bone.parent];
+            if (!parent || !bone.local.length) continue;
+            const composed = composeTransforms(parent.global, bone.local);
+            if (composed.every((x, i) => Math.abs(x - bone.global[i]!) < 2e-2)) skin.composed++;
+            else skin.notComposed++;
+          }
+          for (const part of skinned) {
+            const palette = prm.bonePalette(part.subMesh.mesh);
+            if (palette.some((b) => !Number.isInteger(b) || b >= skeleton.bones.length)) skin.badPalettes++;
+            if (part.stride !== 52) continue;
+            const v = decodeVertices(prm.vertexBytes(part.subMesh, 52), part.vertexCount, VERTEX_LAYOUTS[52]);
+            for (let i = 0; i < part.vertexCount; i++) {
+              skin.vertices++;
+              let best = 0;
+              for (let k = 1; k < 4; k++) if (v.blendWeights![i * 4 + k]! > v.blendWeights![i * 4 + best]!) best = k;
+              const bone = skeleton.bones[palette[v.blendIndices![i * 4 + best]!] ?? -1];
+              if (!bone) {
+                skin.outsidePalette++;
+                continue;
+              }
+              skin.distance += Math.hypot(
+                v.positions[i * 3]! - bone.global[9]!,
+                v.positions[i * 3 + 1]! - bone.global[10]!,
+                v.positions[i * 3 + 2]! - bone.global[11]!,
+              );
+            }
+          }
+        }
+      }
       for (const part of rootParts) {
         parts++;
         triangles += part.triangleCount;
@@ -154,6 +204,13 @@ console.log(`scenes          ${zips.length}`);
 console.log(`nodes           ${nodes}  ${JSON.stringify(kinds)}${registry ? '' : ' (no executable: kinds from type-id families)'}`);
 console.log(`placed roots    ${placedRoots}; parts ${parts}; triangles ${triangles}`);
 console.log(`parts by hidden reason ${JSON.stringify(hidden)}; without a known layout or material ${unshaded}`);
+console.log(
+  `skeletons       ${skin.skeletons} for placed skinned roots; bind matrices compose on ${skin.composed} bones (${skin.notComposed} don't); ` +
+    `${skin.vertices} skinned vertices, mean ${(skin.distance / Math.max(1, skin.vertices)).toFixed(1)} from their main bone`,
+);
+if (skin.notComposed) failures.push(`${skin.notComposed} bones' bind matrices don't compose with their parents'`);
+if (skin.badPalettes) failures.push(`${skin.badPalettes} bone palettes name bones the skeleton doesn't have`);
+if (skin.outsidePalette) failures.push(`${skin.outsidePalette} skinned vertices point outside their palette`);
 if (schemas) {
   console.log(
     `PRP records     ${binding.bound} bound; ${binding.withTail} with class-specific tails (${[...tailClasses].join(', ')}); ` +

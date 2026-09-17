@@ -97,7 +97,9 @@ export {
 } from './tex/tex';
 export { decodeTexLevel, firstLevelWithData, type DecodedImage } from './tex/decode';
 
+export { composeTransforms, readSkeleton, type Bone, type Skeleton } from './prm/skeleton';
 export {
+  PRIM_SUBTYPE_RIGID,
   PRIM_SUBTYPE_WEIGHTED,
   PRIM_TYPE,
   PrmFile,

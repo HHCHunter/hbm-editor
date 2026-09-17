@@ -55,6 +55,10 @@ export interface DecodedVertices {
   uvs: Float32Array | null;
   /** R, G, B, A bytes per vertex. */
   colors: Uint8Array;
+  /** Four weights per vertex: the three stored floats and 1 minus their sum. */
+  blendWeights: Float32Array | null;
+  /** Four palette slots per vertex: the stored index bytes divided by 3 (prm.md, "Skinning"). */
+  blendIndices: Uint8Array | null;
 }
 
 export function decodeVertices(block: Uint8Array, count: number, layout: VertexLayout): DecodedVertices {
@@ -63,6 +67,8 @@ export function decodeVertices(block: Uint8Array, count: number, layout: VertexL
   const normals = layout.normal ? new Float32Array(count * 3) : null;
   const uvs = layout.uv !== null ? new Float32Array(count * 2) : null;
   const colors = new Uint8Array(count * 4);
+  const blendWeights = layout.blendWeights !== null ? new Float32Array(count * 4) : null;
+  const blendIndices = layout.blendIndices !== null ? new Uint8Array(count * 4) : null;
 
   for (let i = 0; i < count; i++) {
     const v = i * layout.stride;
@@ -92,6 +98,20 @@ export function decodeVertices(block: Uint8Array, count: number, layout: VertexL
     colors[i * 4 + 1] = block[c + 1]!;
     colors[i * 4 + 2] = block[c]!;
     colors[i * 4 + 3] = block[c + 3]!;
+
+    if (blendWeights && layout.blendWeights !== null) {
+      let sum = 0;
+      for (let k = 0; k < 3; k++) {
+        const w = view.getFloat32(v + layout.blendWeights + k * 4, true);
+        blendWeights[i * 4 + k] = w;
+        sum += w;
+      }
+      blendWeights[i * 4 + 3] = Math.max(0, 1 - sum);
+    }
+    if (blendIndices && layout.blendIndices !== null) {
+      // Index bytes address shader constant registers, three per bone matrix.
+      for (let k = 0; k < 4; k++) blendIndices[i * 4 + k] = Math.floor(block[v + layout.blendIndices + k]! / 3);
+    }
   }
-  return { count, positions, normals, uvs, colors };
+  return { count, positions, normals, uvs, colors, blendWeights, blendIndices };
 }

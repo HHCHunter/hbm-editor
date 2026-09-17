@@ -1,4 +1,4 @@
-import type { ClassRegistry } from '@hbm/formats';
+import { readSkeleton, type ClassRegistry } from '@hbm/formats';
 import type { FileSource } from '@hbm/formats/node';
 import {
   buildSceneGraph,
@@ -65,7 +65,7 @@ export class LoadedScene {
   /** A summary of every model root the scene places. */
   roots(): Promise<MeshRootDTO[]> {
     this.rootsPromise ??= (async () => {
-      const [graph, surfaces] = await Promise.all([this.graph(), this.surfaces()]);
+      const [graph, surfaces, prm] = await Promise.all([this.graph(), this.surfaces(), this.archive.prm()]);
       const roots = [...new Set(graph.nodes.map((n) => n.meshRoot).filter(Boolean))].sort((a, b) => a - b);
       const out: MeshRootDTO[] = [];
       for (const root of roots) {
@@ -90,6 +90,7 @@ export class LoadedScene {
           variants: [...variants].sort((a, b) => a - b),
           hiddenReasons: [...hidden].sort(),
           weighted: parts.some((p) => p.weighted),
+          bones: readSkeleton(prm, root)?.bones.length ?? 0,
         });
       }
       return out;
