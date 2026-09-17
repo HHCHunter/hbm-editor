@@ -54,6 +54,8 @@ export interface GeomSpec {
   prim?: number;
   typeId?: number;
   refId?: number;
+  /** Byte offset of the name in the sibling .BUF. */
+  nameOffset?: number;
 }
 
 export function makeGmsImage(geoms: GeomSpec[], refSlots = geoms.length + 1): Uint8Array {
@@ -68,6 +70,7 @@ export function makeGmsImage(geoms: GeomSpec[], refSlots = geoms.length + 1): Ui
     const translation = a.alloc(12);
     g.translation.forEach((v, k) => a.f32(translation + 4 * k, v));
     const record = a.alloc(0x40);
+    a.u32(record, g.nameOffset ?? 0);
     a.u32(record + 0x04, rotation);
     a.u32(record + 0x08, translation);
     a.u32(record + 0x0c, g.prim ?? 0);

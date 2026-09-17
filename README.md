@@ -15,8 +15,20 @@ Deleting the `.runtime` folder forces a clean reinstall.
 
 ## Status
 
-Milestone M0: the Editor2 interface running against a built-in mock scene, with a three.js
-viewport, outliner, property grid and undo. Reading real game files comes next (M1).
+The Editor2 interface runs against a built-in mock scene, with a three.js viewport, outliner,
+property grid and undo (M0).
+
+The game file readers are done (M1a–b): scene archives, localisation, scene properties, geoms and
+placements, textures, meshes and materials, joined into a scene graph with mesh parts and surfaces.
+They're written from the HitmanBloodMoneyRecompilation project's reimplemented engine code and
+format documentation. Serving real scenes to the interface comes next (M1c–d).
+
+To check the readers against your own install (PowerShell):
+
+```
+$env:HBM_GAME_DIR = "D:\Games\Hitman Blood Money"
+pnpm sweep
+```
 
 ## Working on the editor
 

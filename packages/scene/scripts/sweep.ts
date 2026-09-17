@@ -1,0 +1,136 @@
+import { existsSync } from 'node:fs';
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { parseArgs } from 'node:util';
+import { PeImage, resolveClassRegistry, type ClassRegistry } from '@hbm/formats';
+import { nodeCodec, openFileSource, resolveGameDir } from '@hbm/formats/node';
+import {
+  SceneArchive,
+  buildSceneGraph,
+  decodeMeshPack,
+  describeSurface,
+  encodeMeshPack,
+  meshParts,
+  partHiddenReason,
+  type HiddenReason,
+  type NodeKind,
+  type Surface,
+} from '../src';
+
+// Builds the scene join for every archive: graph, parts for every placed root, surfaces, and a
+// mesh pack for one scene. Also times the largest scene against the plan's 8-second budget.
+//
+//   pnpm --filter @hbm/scene sweep --game "<install folder or HitmanBloodMoney.exe>"
+
+const BUDGET_SCENE = 'M06/M06_main';
+const BUDGET_SECONDS = 8;
+const PACKED_SCENE = 'M03/M03_main';
+
+const { values } = parseArgs({ options: { game: { type: 'string' } } });
+const gameDir = resolveGameDir(values.game ?? process.env.HBM_GAME_DIR);
+if (!gameDir) {
+  console.error('Point the sweep at your game: --game "D:\\Games\\Hitman Blood Money" (or set HBM_GAME_DIR).');
+  process.exit(2);
+}
+
+const exe = path.join(gameDir, 'HitmanBloodMoney.exe');
+const registry: ClassRegistry | undefined = existsSync(exe)
+  ? resolveClassRegistry(new PeImage(new Uint8Array(await readFile(exe))))
+  : undefined;
+
+const scenesDir = path.join(gameDir, 'Scenes');
+const zips = (await readdir(scenesDir, { recursive: true })).filter((f) => /\.zip$/i.test(f)).sort();
+
+const failures: string[] = [];
+const kinds: Record<NodeKind, number> = { room: 0, group: 0, light: 0, camera: 0, mesh: 0, other: 0 };
+const hidden: Record<HiddenReason | 'visible', number> = { placeholder: 0, collision: 0, bounds: 0, shadow: 0, helper: 0, visible: 0 };
+let nodes = 0;
+let placedRoots = 0;
+let parts = 0;
+let triangles = 0;
+let unshaded = 0;
+
+for (const relative of zips) {
+  const scene = relative.replace(/\\/g, '/').replace(/\.zip$/i, '');
+  const source = await openFileSource(path.join(scenesDir, relative));
+  const started = performance.now();
+  try {
+    const archive = await SceneArchive.open({
+      source,
+      sceneFileName: `Scenes\\${relative.replace(/\//g, '\\')}`,
+      codec: nodeCodec,
+    });
+    const [gms, buf, prp, prm, mat] = await Promise.all([archive.gms(), archive.buf(), archive.prp(), archive.prm(), archive.mat()]);
+    const graph = buildSceneGraph({ gms, buf, prp, prm, registry });
+    const graphSeconds = (performance.now() - started) / 1000;
+    if (graph.problems.length) failures.push(`${scene}: ${graph.problems[0]}`);
+    if (scene === BUDGET_SCENE) {
+      console.log(`${scene}: graph and placements for ${graph.nodes.length} geoms in ${graphSeconds.toFixed(2)} s`);
+      if (graphSeconds > BUDGET_SECONDS) failures.push(`${scene} took ${graphSeconds.toFixed(1)} s, over the ${BUDGET_SECONDS} s budget`);
+    }
+
+    nodes += graph.nodes.length;
+    for (const n of graph.nodes) kinds[n.kind]++;
+
+    const surfaces = new Map<number, Surface>();
+    const surfaceFor = (slot: number) => {
+      let s = surfaces.get(slot);
+      if (!s) {
+        const material = mat.bySlot.get(slot);
+        if (!material) return null;
+        s = describeSurface(mat, material);
+        surfaces.set(slot, s);
+      }
+      return s;
+    };
+
+    const roots = [...new Set(graph.nodes.map((n) => n.meshRoot).filter(Boolean))];
+    placedRoots += roots.length;
+    const scenePartsByRoot = new Map<number, ReturnType<typeof meshParts>>();
+    for (const root of roots) {
+      const rootParts = meshParts(prm, mat, root);
+      scenePartsByRoot.set(root, rootParts);
+      for (const part of rootParts) {
+        parts++;
+        triangles += part.triangleCount;
+        const surface = surfaceFor(part.materialSlot);
+        if (!surface || part.stride === null) {
+          unshaded++;
+          continue;
+        }
+        hidden[partHiddenReason(surface, part.drawMode) ?? 'visible']++;
+      }
+    }
+
+    if (scene === PACKED_SCENE) {
+      const all = [...scenePartsByRoot.values()].flat();
+      const packStarted = performance.now();
+      const bytes = encodeMeshPack(prm, all);
+      const pack = decodeMeshPack(bytes);
+      const vertices = pack.parts.reduce((n, p) => n + p.vertexCount, 0);
+      console.log(
+        `${scene}: mesh pack of ${pack.parts.length} parts, ${vertices} vertices, ${(bytes.length / 1048576).toFixed(1)} MB in ${((performance.now() - packStarted) / 1000).toFixed(2)} s`,
+      );
+      if (pack.parts.length !== all.filter((p) => p.stride !== null).length) failures.push(`${scene}: mesh pack lost parts`);
+      const last = pack.parts[pack.parts.length - 1];
+      if (last && last.index[0] + last.index[1] * 2 > pack.body.length) failures.push(`${scene}: mesh pack body is truncated`);
+    }
+  } catch (err) {
+    failures.push(`${scene}: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    await source.close();
+  }
+}
+
+console.log('');
+console.log(`scenes          ${zips.length}`);
+console.log(`nodes           ${nodes}  ${JSON.stringify(kinds)}${registry ? '' : ' (no executable: kinds from type-id families)'}`);
+console.log(`placed roots    ${placedRoots}; parts ${parts}; triangles ${triangles}`);
+console.log(`parts by hidden reason ${JSON.stringify(hidden)}; without a known layout or material ${unshaded}`);
+
+if (failures.length) {
+  console.log(`\n${failures.length} check(s) failed:`);
+  for (const f of failures.slice(0, 30)) console.log(`  - ${f}`);
+  process.exit(1);
+}
+console.log('\nAll checks passed.');

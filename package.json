@@ -15,7 +15,7 @@
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "eslint .",
-    "sweep": "pnpm --filter @hbm/formats sweep",
+    "sweep": "pnpm --filter @hbm/formats sweep && pnpm --filter @hbm/scene sweep",
     "harvest:classes": "node tools/harvest-classreg.mjs",
     "format": "prettier --write ."
   },

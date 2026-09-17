@@ -7,13 +7,16 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc -p tsconfig.json"
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "sweep": "tsx scripts/sweep.ts"
   },
   "dependencies": {
     "@hbm/formats": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }
