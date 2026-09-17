@@ -78,6 +78,7 @@ export function Tree<K extends string | number, T extends TreeItem<K>>({
 
   // Keep the focused row in view, including when the selection changes elsewhere.
   const lastRevealed = useRef<K | null>(null);
+  const pointerFocus = useRef(false);
   useEffect(() => {
     if (focusIndex < 0 || focusKey === lastRevealed.current) return;
     lastRevealed.current = focusKey;
@@ -166,8 +167,12 @@ export function Tree<K extends string | number, T extends TreeItem<K>>({
       tabIndex={empty ? -1 : 0}
       className={`ui-tree${className ? ` ${className}` : ''}`}
       onKeyDown={onKeyDown}
+      onPointerDown={() => (pointerFocus.current = true)}
       onFocus={() => {
-        if (focusIndex < 0 && items[0]) onFocusChange(items[0].key);
+        // Tabbing in starts at the first row. A click picks its own row, and moving the cursor to
+        // the top here would scroll the list away from under the pointer before the click lands.
+        if (!pointerFocus.current && focusIndex < 0 && items[0]) onFocusChange(items[0].key);
+        pointerFocus.current = false;
       }}
     >
       <div ref={rows.probeRef} className="ui-row-probe" aria-hidden="true" />

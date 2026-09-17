@@ -198,6 +198,28 @@ describe('tree', () => {
     );
   }
 
+  it('selects the clicked row without first moving the cursor to the top', async () => {
+    const user = userEvent.setup();
+    const select = vi.fn();
+    render(
+      <Tree<number, Row>
+        label="Objects"
+        items={all.filter((r) => r.parent < 0)}
+        selected={new Set()}
+        focusKey={null}
+        onFocusChange={(key) => select('focus', key)}
+        onToggle={() => {}}
+        onSelect={(key) => select('select', key)}
+      />,
+    );
+    // Moving the cursor to the first row would scroll a long list away from under the pointer.
+    await user.click(screen.getByRole('treeitem', { name: 'Kitchen' }));
+    expect(select.mock.calls).toEqual([
+      ['focus', 3],
+      ['select', 3],
+    ]);
+  });
+
   it('moves, opens, goes to the parent, and jumps by typing', async () => {
     const user = userEvent.setup();
     const select = vi.fn();
