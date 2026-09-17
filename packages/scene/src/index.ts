@@ -11,7 +11,7 @@ export {
   type SceneGraphInput,
   type SceneNode,
 } from './graph';
-export { lodLevels, meshParts, type MeshPart } from './parts';
+export { drawsVariant, lodLevels, meshParts, type MeshPart } from './parts';
 export {
   DRAW_MODE_NOT_A_SURFACE,
   describeSurface,

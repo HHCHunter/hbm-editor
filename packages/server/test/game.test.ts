@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+﻿import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -6,6 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TOKEN_HEADER, type BrowseDTO, type ConfigDTO, type LocEntryDTO, type LocLookupDTO, type NodeDetailDTO, type SceneGraphDTO, type SurfaceDTO, type TextureDTO } from '@hbm/protocol';
 import { decodeMeshPack } from '@hbm/scene';
 import { buildApp } from '../src/app';
+import { ConfigStore } from '../src/config/configStore';
+import { GameService } from '../src/game/GameService';
 import { makeFakeGame, type FakeGame } from './fakeGame';
 
 const PORT = 4757;
@@ -169,5 +171,15 @@ describe('localisation', () => {
 
   it('searches names and text', async () => {
     expect((await json<LocEntryDTO[]>(scene('loc/search', '&q=pick%20up'))).map((e) => e.path)).toEqual(['AllLevels/Actions/Pickup']);
+  });
+});
+
+describe('open scenes', () => {
+  it('shares one open file between requests that arrive together', async () => {
+    const service = await GameService.create(new ConfigStore(path.join(temp, 'data-concurrent')));
+    await service.setGame(fake.root);
+    const seen = await Promise.all([1, 2, 3].map(() => service.withScene(fake.scene, async (s) => s)));
+    expect(new Set(seen).size).toBe(1);
+    await service.close();
   });
 });

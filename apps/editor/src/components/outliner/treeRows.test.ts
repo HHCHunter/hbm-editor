@@ -4,7 +4,7 @@ import { childIndex } from '../../scene/sceneModel';
 import { buildTreeRows } from './treeRows';
 
 function node(index: number, parent: number, depth: number, name: string, kind: SceneNodeDTO['kind'] = 'group'): SceneNodeDTO {
-  return { index, parent, depth, name, typeId: 0, className: null, kind, meshRoot: 0, boundingBox: null, inactive: null, controllers: [] };
+  return { index, parent, depth, name, typeId: 0, className: null, kind, meshRoot: 0, variantId: 0, boundingBox: null, inactive: null, controllers: [] };
 }
 
 // Lobby

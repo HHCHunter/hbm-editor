@@ -11,7 +11,7 @@ export function HeaderFields() {
     ['Name', one ? nodeLabel(one) : sel.length ? `(${sel.length} selected)` : ''],
     ['Class', one?.className ?? (one ? one.kind : '')],
     ['Controllers', one?.controllers.join(', ') ?? ''],
-    ['Model', one?.meshRoot ? String(one.meshRoot) : ''],
+    ['Model', one?.meshRoot ? `${one.meshRoot}${one.variantId ? ` · variant ${one.variantId}` : ''}` : ''],
     ['Wrld', one && scene ? nodePosition(scene.transforms, one.index).map(formatNumber).join(', ') : ''],
   ];
 

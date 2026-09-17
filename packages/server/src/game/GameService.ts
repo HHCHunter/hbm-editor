@@ -109,12 +109,14 @@ export class GameService {
     const file = (await this.scenes()).get(id);
     if (!file) throw new HttpError(404, `There's no scene called ${id}`);
 
+    // No await between looking the scene up and registering it: two requests for a scene that
+    // isn't open yet must share one file handle, not each open their own.
     let entry = this.open.get(id);
     if (entry) {
       this.open.delete(id);
     } else {
-      const registry = await this.classRegistry();
       const scene = (async () => {
+        const registry = await this.classRegistry();
         const source = await openFileSource(file.path);
         try {
           const archive = await SceneArchive.open({ source, sceneFileName: `Scenes\\${id.replace(/\//g, '\\')}.ZIP`, codec: nodeCodec });

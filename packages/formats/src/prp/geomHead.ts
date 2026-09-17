@@ -5,7 +5,8 @@ import type { PrpRange, PrpTree } from './PrpTree';
 
 /**
  * The 15 properties every geom record starts with (prp.md, "The geom base head"):
- * BoundingBox, Matrix ×9, Position ×3, bInactive, Prim. What follows depends on the class.
+ * BoundingBox, Matrix ×9, Position ×3, bInactive, Prim. What follows depends on the class; the two
+ * values after it are read when present because drawables share them.
  */
 export interface PrpGeomHead {
   boundingBox: string | number;
@@ -13,7 +14,16 @@ export interface PrpGeomHead {
   matrix: number[];
   position: number[];
   inactive: boolean;
+  /** Applied after the GMS record by ZGEOM's registered setter, so it wins over GMS +0x0C. */
   prim: number;
+  /** ZSTDOBJ's `Invisible`, when the record carries a bool next. */
+  invisible: boolean | null;
+  /**
+   * The u32 after `Invisible`, when present. For ZLNKOBJ and its subclasses this is
+   * `m_lVariantId`, which picks one character out of a multi-character model; other classes may
+   * store something else here, so callers check the class.
+   */
+  afterInvisible: number | null;
 }
 
 /** Decode a record's geom head, or null when the record doesn't start with one. */
@@ -31,6 +41,15 @@ export function readGeomHead(data: Uint8Array, tree: PrpTree, record: PrpRange):
     const prim = cursor.next();
     if (inactive.kind !== 'bool' || prim.kind !== 'u32') return null;
 
+    let invisible: boolean | null = null;
+    let afterInvisible: number | null = null;
+    const next = cursor.next();
+    if (next.kind === 'bool') {
+      invisible = next.value !== 0;
+      const value = cursor.next();
+      if (value.kind === 'u32') afterInvisible = value.value;
+    }
+
     return {
       boundingBox: boundingBox.interned
         ? tree.strings[boundingBox.value]!
@@ -41,6 +60,8 @@ export function readGeomHead(data: Uint8Array, tree: PrpTree, record: PrpRange):
       position,
       inactive: inactive.value !== 0,
       prim: prim.value,
+      invisible,
+      afterInvisible,
     };
   } catch (err) {
     if (err instanceof FormatError) return null;

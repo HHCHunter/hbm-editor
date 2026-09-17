@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PrmFile, readGms, readPrpTree } from '@hbm/formats';
 import { PrmBuilder, PrpBuilder, makeGmsImage, text } from '@hbm/formats/testing';
-import { buildSceneGraph, leafName } from '../src';
+import { buildSceneGraph, drawsVariant, leafName } from '../src';
 
 const IDENTITY_STORED = [0, 0, 1, 0, 1, 0, 1, 0, 0];
 
@@ -57,6 +57,47 @@ describe('buildSceneGraph', () => {
 
   it('composes world transforms down the tree', () => {
     expect(Array.from(graph.transforms.subarray(12 + 9, 24))).toEqual([1, 2, 3]);
+  });
+
+  it('takes the prim and variant each geom asks for from its PRP record', () => {
+    // One model root holding two characters (variants 1 and 5), placed twice.
+    const b = new PrmBuilder();
+    const character = (variant: number) => b.add(0x28, (a, at) => (a.bytes[at + 0x0f] = variant));
+    const table = [character(1), character(5)];
+    const objects = b.add(8, (a, at) => table.forEach((o, i) => a.u32(at + i * 4, o)));
+    const root = b.add(0x3c, (a, at) => {
+      a.u16(at + 2, 7);
+      a.u32(at + 0x14, 2);
+      a.u32(at + 0x18, objects);
+    });
+    const prm = new PrmFile(b.build());
+
+    const buf = new Uint8Array(32);
+    buf.set(text('0123456789abcdef'), 0);
+    const geom = { ascend: 0, hasChildren: false, stored: IDENTITY_STORED, translation: [0, 0, 0], typeId: 0x00200002, nameOffset: 0 };
+    // The second geom's GMS record names no prim; its PRP record does.
+    const gms = readGms(makeGmsImage([{ ...geom, prim: root }, { ...geom, prim: 0 }]));
+
+    const p = new PrpBuilder();
+    p.container(0);
+    p.beginNode().endNode().container(0).container(2);
+    p.beginNode().geomHead(root).bool(false).u32(5).endNode().container(0).container(0);
+    p.beginNode().geomHead(root).bool(false).u32(1).endNode().container(0).container(0);
+    const data = p.build({ refSlots: 3 });
+
+    const g = buildSceneGraph({ gms, buf, prm, prp: { data, tree: readPrpTree(data) } });
+    expect(g.nodes.map((n) => [n.meshRoot, n.variantId])).toEqual([
+      [root, 5],
+      [root, 1],
+    ]);
+    expect(g.problems).toEqual([expect.stringMatching(/1 geoms name a different prim/)]);
+  });
+
+  it('draws every object for variant 0 and only the matching one otherwise', () => {
+    expect(drawsVariant(0, 5)).toBe(true);
+    expect(drawsVariant(5, 5)).toBe(true);
+    expect(drawsVariant(5, 1)).toBe(false);
+    expect(drawsVariant(5, 0)).toBe(false);
   });
 
   it('shortens scene paths to their last segment', () => {

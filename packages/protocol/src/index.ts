@@ -91,6 +91,8 @@ export interface SceneNodeDTO {
   kind: NodeKindDTO;
   /** The .PRM model root this node draws, or 0. */
   meshRoot: number;
+  /** Which character of a multi-character model it draws: 0 draws every object, otherwise only objects with this lVariantId. */
+  variantId: number;
   boundingBox: string | number | null;
   inactive: boolean | null;
   controllers: string[];

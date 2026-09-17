@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { buildApp } from './app';
+import { defaultDataDir } from './config/configStore';
 import { HttpError } from './http/HttpError';
 import { newSessionToken } from './security/sessionToken';
 import { VERSION } from './version';
@@ -29,6 +30,28 @@ function openBrowser(url: string): void {
   child.unref();
 }
 
+/**
+ * Report a crash on the console and in `<data>/logs/server.log`, so the cause survives the launcher
+ * window closing, then exit with an error.
+ */
+function recordCrashes(dataDir: string): void {
+  const crash = (kind: string, err: unknown) => {
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    const entry = `[${new Date().toISOString()}] ${kind} (server v${VERSION}, node ${process.version})\n${detail}\n\n`;
+    console.error(`\nThe editor server crashed (${kind}):\n${detail}\n`);
+    try {
+      mkdirSync(path.join(dataDir, 'logs'), { recursive: true });
+      appendFileSync(path.join(dataDir, 'logs', 'server.log'), entry);
+      console.error(`Saved to ${path.join(dataDir, 'logs', 'server.log')}`);
+    } catch {
+      // The console copy above is all we can do.
+    }
+    process.exit(1);
+  };
+  process.on('uncaughtException', (err) => crash('uncaught exception', err));
+  process.on('unhandledRejection', (reason) => crash('unhandled promise rejection', reason));
+}
+
 async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
@@ -40,6 +63,8 @@ async function main(): Promise<void> {
       dev: { type: 'boolean', default: false },
     },
   });
+
+  recordCrashes(values.data ?? defaultDataDir());
 
   const port = Number(values.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {

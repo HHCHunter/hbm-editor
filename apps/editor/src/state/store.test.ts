@@ -7,7 +7,7 @@ import { initialEditorState, useEditor, type LoadedScene } from './store';
 const state = () => useEditor.getState();
 
 function node(index: number, parent: number, kind: SceneNodeDTO['kind'], meshRoot = 0): SceneNodeDTO {
-  return { index, parent, depth: parent < 0 ? 0 : 1, name: `n${index}`, typeId: 0, className: null, kind, meshRoot, boundingBox: null, inactive: null, controllers: [] };
+  return { index, parent, depth: parent < 0 ? 0 : 1, name: `n${index}`, typeId: 0, className: null, kind, meshRoot, variantId: 0, boundingBox: null, inactive: null, controllers: [] };
 }
 
 // room 0 › group 1 › mesh 2, and mesh 3 at the top.

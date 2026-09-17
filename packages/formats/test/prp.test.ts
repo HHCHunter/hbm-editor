@@ -70,7 +70,19 @@ describe('readPrpTree', () => {
       position: [1, 2, 3],
       inactive: false,
       prim: 7,
+      invisible: null,
+      afterInvisible: null,
     });
+  });
+
+  it('reads Invisible and the value after it when a drawable carries them', () => {
+    // A ZLNKOBJ record as M11 stores it: Prim, Invisible, m_lVariantId 56, then more.
+    const b = new PrpBuilder();
+    b.container(0).beginNode().geomHead(3309).bool(false).u32(56).u32(0).string('').endNode();
+    b.container(0).container(0);
+    const bytes = b.build({ refSlots: 1 });
+    const t = readPrpTree(bytes);
+    expect(readGeomHead(bytes, t, t.nodes[0]!.record)).toMatchObject({ prim: 3309, invisible: false, afterInvisible: 56 });
   });
 
   it('returns null for a record without a geom head', () => {

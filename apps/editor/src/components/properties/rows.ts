@@ -62,6 +62,7 @@ export function buildPropRows(
 
   if (meshParts?.length) {
     rows.push({ kind: 'group', label: `Model ${node.meshRoot}` });
+    rows.push({ kind: 'text', label: 'Variant', value: node.variantId ? String(node.variantId) : '0 (whole model)' });
     const slots = [...new Set(meshParts.map((p) => p.materialSlot))];
     for (const slot of slots) {
       const surface = surfaces[slot];

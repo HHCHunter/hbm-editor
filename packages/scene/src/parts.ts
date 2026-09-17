@@ -53,6 +53,16 @@ export function meshParts(prm: PrmFile, mat: MatFile, root: number): MeshPart[] 
   return parts;
 }
 
+/**
+ * Whether a geom asking for `requested` draws an object whose `lVariantId` is `objectVariant`
+ * (prm.md, "lVariantId selects one character"). The renderer compares bytes: 0 draws everything,
+ * otherwise only the matching object draws.
+ */
+export function drawsVariant(requested: number, objectVariant: number): boolean {
+  const byte = requested & 0xff;
+  return byte === 0 || byte === (objectVariant & 0xff);
+}
+
 /** The LOD levels a mask draws at, nearest first. */
 export function lodLevels(mask: number): number[] {
   const levels: number[] = [];

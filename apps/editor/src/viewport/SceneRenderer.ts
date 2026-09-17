@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { SurfaceDTO, TextureDTO } from '@hbm/protocol';
-import { partHiddenReason } from '@hbm/scene';
+import { drawsVariant, partHiddenReason } from '@hbm/scene';
 import { listTextures, textureRgbaUrl } from '../api/endpoints';
 import { effectiveFlags, meshNodeIndices, positionBounds, TRANSFORM } from '../scene/sceneModel';
 import type { CameraState, EditorState, LoadedScene } from '../state/store';
@@ -55,7 +55,6 @@ export class SceneRenderer {
   private load: MeshLoad | null = null;
   private parts: PartMesh[] = [];
   private instancesByNode = new Map<number, PartMesh[]>();
-  private variantByRoot = new Map<number, number>();
   private hiddenNodes: Uint8Array = new Uint8Array(0);
   private frozenNodes: Uint8Array = new Uint8Array(0);
 
@@ -154,12 +153,10 @@ export class SceneRenderer {
 
   private addRoot(scene: LoadedScene, root: number, nodes: number[]): void {
     const parts = meshPartsOf(scene.id, root) ?? [];
-    // A model with variants draws its shared parts plus its first variant.
-    const variants = parts.map((p) => p.variantId).filter((v) => v !== 0);
-    this.variantByRoot.set(root, variants.length ? Math.min(...variants) : 0);
-
     for (const part of parts) {
-      if (!part.indices.length) continue;
+      // Each placement draws only the character it asks for (0 draws the whole model).
+      const drawn = nodes.filter((n) => drawsVariant(scene.graph.nodes[n]!.variantId, part.variantId));
+      if (!part.indices.length || !drawn.length) continue;
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(part.positions, 3));
       if (part.uvs) geometry.setAttribute('uv', new THREE.BufferAttribute(part.uvs, 2));
@@ -170,13 +167,13 @@ export class SceneRenderer {
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
 
-      const mesh = new THREE.InstancedMesh(geometry, this.materialFor(part.materialSlot), nodes.length);
-      const entry: PartMesh = { part, mesh, nodes };
+      const mesh = new THREE.InstancedMesh(geometry, this.materialFor(part.materialSlot), drawn.length);
+      const entry: PartMesh = { part, mesh, nodes: drawn };
       this.placeInstances(entry);
       this.applyPartFilter(entry);
       this.models.add(mesh);
       this.parts.push(entry);
-      for (const node of nodes) {
+      for (const node of drawn) {
         const list = this.instancesByNode.get(node) ?? [];
         list.push(entry);
         this.instancesByNode.set(node, list);
@@ -204,7 +201,6 @@ export class SceneRenderer {
     this.models.clear();
     this.parts = [];
     this.instancesByNode.clear();
-    this.variantByRoot.clear();
     this.clearOverlays();
     for (const material of this.materials.values()) material.dispose();
     this.materials.clear();
@@ -235,11 +231,10 @@ export class SceneRenderer {
     if (!state || !scene) return;
     const { part } = entry;
     const lodOk = part.lodMask === 0 || (part.lodMask & (1 << state.filters.lod)) !== 0;
-    const variantOk = part.variantId === 0 || part.variantId === this.variantByRoot.get(part.root);
     const surface = scene.surfaces[part.materialSlot];
     const reason = surface ? partHiddenReason(surface, part.drawMode) : null;
     const reasonOk = reason === null || state.filters.show[reason];
-    entry.mesh.visible = lodOk && variantOk && reasonOk;
+    entry.mesh.visible = lodOk && reasonOk;
     // Non-surface geometry is drawn as a see-through overlay so it doesn't hide the level.
     if (reason) entry.mesh.material = this.helperMaterial(reason);
   }
