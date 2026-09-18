@@ -1397,3 +1397,28 @@
   color: var(--c-text-disabled);
   box-shadow: var(--bevel-pressed);
 }
+
+/* ------------------------------------------------------------ split pane */
+
+.ui-split {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.ui-split--column {
+  flex-direction: column;
+}
+
+.ui-split-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ui-split-pane[hidden] {
+  display: none;
+}

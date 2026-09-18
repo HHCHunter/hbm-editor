@@ -139,25 +139,41 @@
   display: flex;
   min-height: 0;
   padding: var(--sp-1);
-  gap: var(--sp-1);
 }
 
-.centre {
+.viewport-area {
+  display: flex;
+}
+
+/* The browsers under the viewport: tabs, a maximise button, and the browser. */
+.browser-panel {
+  background: var(--face);
+}
+
+.browser-panel-head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  flex: none;
+  box-shadow: inset 0 -1px 0 var(--hilite);
+}
+
+.browser-panel-tabs {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
+  box-shadow: none;
 }
 
-.centre-page {
+.browser-panel-head > .ui-btn {
+  margin-bottom: 2px;
+}
+
+.browser-panel-page {
   flex: 1;
   min-height: 0;
   display: flex;
-  padding-top: var(--sp-1);
-}
-
-.centre-page[hidden] {
-  display: none;
+  padding-top: var(--sp-2);
 }
 
 /* ------------------------------------------------------------ settings */
@@ -253,8 +269,6 @@
 .browser-body {
   flex: 1;
   min-height: 0;
-  display: flex;
-  gap: var(--sp-1);
 }
 
 .browser-table {
@@ -364,8 +378,8 @@
 
 .tex-detail,
 .side-detail {
-  width: 22rem;
-  flex: none;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
@@ -380,8 +394,8 @@
 }
 
 .tex-detail-image {
-  height: 18rem;
-  flex: none;
+  /* Shorter in a short browser panel, so the facts below stay in view. */
+  flex: 0 0 clamp(7rem, 45%, 18rem);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -480,6 +494,11 @@
   overflow: hidden;
 }
 
+.viewport-canvas:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: -2px;
+}
+
 .viewport-canvas canvas {
   position: absolute;
   inset: 0;
@@ -532,20 +551,10 @@
 
 /* ------------------------------------------------------------ outliner */
 
-.right-col {
-  width: 26rem;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  min-height: 0;
-}
-
 .tree-area {
-  flex: 1.35;
+  flex: 1;
   min-height: 0;
   display: flex;
-  gap: var(--sp-1);
 }
 
 .tree-panel {

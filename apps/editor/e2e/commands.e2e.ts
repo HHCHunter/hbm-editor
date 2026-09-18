@@ -80,11 +80,11 @@ test('shortcuts can be changed, are remembered, and only act on the view that is
   await expect(page.getByRole('menuitem', { name: /Frame Selected/ })).toHaveAttribute('aria-keyshortcuts', 'K');
   await page.keyboard.press('Escape');
 
-  // K frames the selection in the scene view, and does nothing while another tab is showing.
+  // K frames the selection in the scene view, but not while the keyboard is in the browsers.
   await page.getByRole('treeitem', { name: /Table_01/ }).click();
   const status = page.getByRole('status').first();
   await page.keyboard.press('Alt+2');
-  await expect(page.getByRole('tab', { name: 'Textures', selected: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Textures', selected: true })).toBeFocused();
   await page.keyboard.press('k');
   await expect(status).not.toContainText('Frame selected');
   await page.keyboard.press('Alt+1');

@@ -41,8 +41,8 @@ test('a material shows as a graph of its textures and features, linked to textur
   await page.locator('.tex-detail').getByRole('button', { name: /Furniture\/Table/ }).click();
   await expect(page.getByRole('tab', { name: 'Materials', selected: true })).toBeVisible();
 
-  // The objects using it select and frame in the scene.
+  // The objects using it select and frame in the scene, which is showing beside the browsers.
   await page.getByRole('button', { name: /Table_01/ }).click();
-  await expect(page.getByRole('tab', { name: 'Scene', selected: true })).toBeVisible();
+  await expect(page.getByTestId('viewport')).toBeVisible();
   await expect(tree).toHaveAttribute('aria-selected', 'true');
 });

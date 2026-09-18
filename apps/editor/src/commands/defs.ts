@@ -9,7 +9,9 @@ import {
   FolderOpen,
   HardDrive,
   Keyboard,
+  LayoutTemplate,
   Lock,
+  Maximize2,
   Redo2,
   RotateCcw,
   Scan,
@@ -31,8 +33,9 @@ import {
   selectParents,
   selectSameClass,
   setAllExpanded,
+  setBrowserMaximised,
   setSelMode,
-  setTab,
+  showBrowser,
   toggleFreezeSelection,
   toggleHideSelection,
   toggleShown,
@@ -45,7 +48,9 @@ import {
   zoomSelected,
 } from '../state/actions';
 import { nodeLabel } from '../scene/sceneModel';
-import { useEditor, type Tab, type ViewFlag } from '../state/store';
+import { BROWSER_TAB_PREFIX, useLayout } from '../shell/layoutStore';
+import { useEditor, type BrowserTab, type ViewFlag } from '../state/store';
+import { tabId } from '../ui/Tabs';
 import { toast } from '../ui';
 import { openPalette } from './palette';
 import type { CommandContext, EditorCommand } from './types';
@@ -53,8 +58,8 @@ import type { CommandContext, EditorCommand } from './types';
 const needScene = ({ state }: CommandContext) => (state.scene ? null : 'Open a scene first');
 const needSelection = ({ state }: CommandContext) =>
   !state.scene ? 'Open a scene first' : state.sel.length ? null : 'Select one or more objects first';
-/** Commands that change or use the 3D view. They stay in place but grey out while another tab shows. */
-const needSceneView = (ctx: CommandContext) => needScene(ctx) ?? (ctx.state.tab === 'scene' ? null : 'Show the Scene tab to use this');
+/** Commands that change or use the 3D view. They stay in place but grey out while a browser fills its place. */
+const needSceneView = (ctx: CommandContext) => needScene(ctx) ?? (ctx.state.browserMaximised ? 'Restore the viewport to use this' : null);
 const needSelectionInView = (ctx: CommandContext) => needSceneView(ctx) ?? needSelection(ctx);
 
 type ViewMode = 'lit' | 'unlit' | 'wireframe';
@@ -98,15 +103,23 @@ const shown = (reason: HiddenReasonDTO, title: string, description: string): Edi
   run: () => toggleShown(reason),
 });
 
-const windowTab = (tab: Tab, title: string): EditorCommand => ({
+/** Move the keyboard to an element once React has shown it. */
+function focusSoon(find: () => HTMLElement | null): void {
+  requestAnimationFrame(() => find()?.focus());
+}
+
+const windowBrowser = (tab: BrowserTab, title: string): EditorCommand => ({
   id: `window.${tab}`,
   title,
   category: 'Window',
-  description: `Show the ${title} tab`,
+  description: `Show ${title} in the browser panel under the viewport`,
   radio: true,
   scope: 'global',
-  checked: ({ state }) => state.tab === tab,
-  run: () => setTab(tab),
+  checked: ({ state }) => state.browser === tab,
+  run: () => {
+    showBrowser(tab);
+    focusSoon(() => document.getElementById(tabId(BROWSER_TAB_PREFIX, tab)));
+  },
 });
 
 const SIDES = Object.keys(VIEW_ANGLES) as (keyof typeof VIEW_ANGLES)[];
@@ -409,12 +422,45 @@ export const COMMANDS: EditorCommand[] = [
   },
 
   // ---------------------------------------------------------------- window
-  windowTab('scene', 'Scene'),
-  windowTab('textures', 'Textures'),
-  windowTab('materials', 'Materials'),
-  windowTab('localisation', 'Localisation'),
-  windowTab('scripts', 'Scripts'),
-  windowTab('animations', 'Animations'),
+  {
+    id: 'window.scene',
+    title: 'Viewport',
+    category: 'Window',
+    description: 'Show the 3D view and move the keyboard to it',
+    keywords: ['scene', '3d', 'focus'],
+    scope: 'global',
+    run: () => {
+      setBrowserMaximised(false);
+      focusSoon(() => document.querySelector<HTMLElement>('[data-testid="viewport"]'));
+    },
+  },
+  windowBrowser('textures', 'Textures'),
+  windowBrowser('materials', 'Materials'),
+  windowBrowser('localisation', 'Localisation'),
+  windowBrowser('scripts', 'Scripts'),
+  windowBrowser('animations', 'Animations'),
+  {
+    id: 'window.maximiseBrowser',
+    title: 'Maximise Browser Panel',
+    category: 'Window',
+    description: 'Let the browser panel fill the viewport’s space, or give the viewport back',
+    icon: Maximize2,
+    keywords: ['fullscreen', 'bigger', 'restore', 'expand'],
+    checked: ({ state }) => state.browserMaximised,
+    run: () => setBrowserMaximised(!useEditor.getState().browserMaximised),
+  },
+  {
+    id: 'window.resetLayout',
+    title: 'Reset Layout',
+    category: 'Window',
+    description: 'Put every panel back to its default size',
+    icon: LayoutTemplate,
+    keywords: ['panels', 'splitters', 'default'],
+    run: () => {
+      useLayout.getState().reset();
+      setBrowserMaximised(false);
+    },
+  },
 
   // ---------------------------------------------------------------- help
   {

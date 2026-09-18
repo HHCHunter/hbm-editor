@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { BROWSER_AREA } from '../shell/layoutStore';
 import { useEditor, type EditorState } from '../state/store';
 import { commandsForChord } from './keymap';
 import { chordFromEvent, worksWhileTyping } from './keybindings';
@@ -19,20 +20,34 @@ function inOwnKeyboardArea(target: EventTarget | null): boolean {
 const SPECIFICITY: Scope[] = ['sceneView', 'workspace', 'global'];
 const REPEATABLE = ['Ctrl+Z', 'Ctrl+Y', 'Ctrl+Shift+Z'];
 
-export function scopeActive(scope: Scope, state: Pick<EditorState, 'dialog' | 'tab'>): boolean {
+export interface ShortcutContext {
+  dialog: EditorState['dialog'];
+  /** The 3D view is showing and the keyboard isn't in the browser panel. */
+  sceneView: boolean;
+}
+
+export function shortcutContext(
+  state: Pick<EditorState, 'dialog' | 'browserMaximised'>,
+  target: EventTarget | null,
+): ShortcutContext {
+  const inBrowser = target instanceof Element && !!target.closest(`[data-area="${BROWSER_AREA}"]`);
+  return { dialog: state.dialog, sceneView: !state.browserMaximised && !inBrowser };
+}
+
+export function scopeActive(scope: Scope, context: ShortcutContext): boolean {
   if (scope === 'global') return true;
-  if (state.dialog) return false;
-  return scope === 'workspace' || state.tab === 'scene';
+  if (context.dialog) return false;
+  return scope === 'workspace' || context.sceneView;
 }
 
 /**
  * The command a chord runs right now, or null. Of the commands bound to it, the one in the
  * narrowest scope that's active wins.
  */
-export function resolveChord(chord: string, state: Pick<EditorState, 'dialog' | 'tab'>): string | null {
+export function resolveChord(chord: string, context: ShortcutContext): string | null {
   const candidates = commandsForChord(chord)
     .map((id) => getCommand(id))
-    .filter((c): c is NonNullable<typeof c> => !!c && scopeActive(c.scope ?? 'workspace', state));
+    .filter((c): c is NonNullable<typeof c> => !!c && scopeActive(c.scope ?? 'workspace', context));
   candidates.sort((a, b) => SPECIFICITY.indexOf(a.scope ?? 'workspace') - SPECIFICITY.indexOf(b.scope ?? 'workspace'));
   return candidates[0]?.id ?? null;
 }
@@ -53,7 +68,7 @@ export function useCommandShortcuts(): void {
       const state = useEditor.getState();
       // A dialog is modal and handles its own keys.
       if (state.dialog) return;
-      const id = resolveChord(chord, state);
+      const id = resolveChord(chord, shortcutContext(state, e.target));
       if (!id) return;
       // Menus and lists keep their keys for navigation and type-ahead, except global commands.
       if (inOwnKeyboardArea(e.target) && getCommand(id)?.scope !== 'global') return;

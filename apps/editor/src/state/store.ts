@@ -47,7 +47,8 @@ export interface MeshProgress {
   failed: number;
 }
 
-export type Tab = 'scene' | 'textures' | 'materials' | 'localisation' | 'scripts' | 'animations';
+/** The browsers in the panel under the viewport. */
+export type BrowserTab = 'textures' | 'materials' | 'localisation' | 'scripts' | 'animations';
 export type DialogName = 'gamePicker' | 'sceneOpen' | 'settings' | 'palette' | 'keybindings';
 export type SelMode = 'Geom' | 'Group';
 
@@ -62,7 +63,10 @@ export interface EditorState {
   server: 'connecting' | 'ready' | 'unreachable';
   config: ConfigDTO | null;
   dialog: DialogName | null;
-  tab: Tab;
+  /** The browser showing in the panel under the viewport. */
+  browser: BrowserTab;
+  /** The browser panel fills the centre in place of the viewport. */
+  browserMaximised: boolean;
   /** The material shown in the Materials tab, by slot. */
   materialSlot: number | null;
   /** The texture shown in the Textures tab, by id. */
@@ -102,7 +106,8 @@ export function initialEditorState(): EditorState {
     server: 'connecting',
     config: null,
     dialog: null,
-    tab: 'scene',
+    browser: 'textures',
+    browserMaximised: false,
     materialSlot: null,
     textureId: null,
     scene: null,

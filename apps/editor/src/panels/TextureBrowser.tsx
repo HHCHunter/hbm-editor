@@ -6,6 +6,7 @@ import { useAsync } from '../hooks/useAsync';
 import { useEditor } from '../state/store';
 import { showMaterial } from '../state/actions';
 import { Button, PanelState, SearchField, Select } from '../ui';
+import { BrowserSplit } from './BrowserSplit';
 
 const THUMB_EDGE = 128;
 
@@ -137,64 +138,70 @@ export function TextureBrowser() {
           count={textures.value ? `${shown.length} of ${textures.value.length} textures` : undefined}
         />
       </div>
-      <div className="browser-body">
-        {textures.status === 'loading' && <PanelState variant="loading" title="Reading textures…" />}
-        {textures.status === 'error' && <PanelState variant="error" title="Couldn't read this scene's textures" message={textures.error} />}
-        {textures.value && (
-          <div
-            ref={gridRef}
-            className="tex-grid bevel-in"
-            role="listbox"
-            aria-label="Textures"
-            aria-orientation="horizontal"
-            tabIndex={0}
-            aria-activedescendant={chosen !== null && at >= 0 ? `${id}-${chosen}` : undefined}
-            onKeyDown={(e) => {
-              const cols = columns();
-              if (e.key === 'ArrowRight') choose(at + 1);
-              else if (e.key === 'ArrowLeft') choose(at - 1);
-              else if (e.key === 'ArrowDown') choose(at < 0 ? 0 : at + cols);
-              else if (e.key === 'ArrowUp') choose(at - cols);
-              else if (e.key === 'Home') choose(0);
-              else if (e.key === 'End') choose(shown.length - 1);
-              else return;
-              e.preventDefault();
-            }}
-          >
-            {!shown.length && (
-              <PanelState
-                variant="empty"
-                layout="inline"
-                title={`No textures match “${filter}”`}
-                action={{ label: 'Clear Filter', onClick: () => setFilter('') }}
-              />
+      <BrowserSplit
+        id="textures.detail"
+        label="Resize the texture details"
+        start={
+          <>
+            {textures.status === 'loading' && <PanelState variant="loading" title="Reading textures…" />}
+            {textures.status === 'error' && <PanelState variant="error" title="Couldn't read this scene's textures" message={textures.error} />}
+            {textures.value && (
+              <div
+                ref={gridRef}
+                className="tex-grid bevel-in"
+                role="listbox"
+                aria-label="Textures"
+                aria-orientation="horizontal"
+                tabIndex={0}
+                aria-activedescendant={chosen !== null && at >= 0 ? `${id}-${chosen}` : undefined}
+                onKeyDown={(e) => {
+                  const cols = columns();
+                  if (e.key === 'ArrowRight') choose(at + 1);
+                  else if (e.key === 'ArrowLeft') choose(at - 1);
+                  else if (e.key === 'ArrowDown') choose(at < 0 ? 0 : at + cols);
+                  else if (e.key === 'ArrowUp') choose(at - cols);
+                  else if (e.key === 'Home') choose(0);
+                  else if (e.key === 'End') choose(shown.length - 1);
+                  else return;
+                  e.preventDefault();
+                }}
+              >
+                {!shown.length && (
+                  <PanelState
+                    variant="empty"
+                    layout="inline"
+                    title={`No textures match “${filter}”`}
+                    action={{ label: 'Clear Filter', onClick: () => setFilter('') }}
+                  />
+                )}
+                {shown.map((t) => {
+                  const level = thumbLevel(t);
+                  return (
+                    // The grid owns focus and keyboard handling.
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                    <div
+                      key={t.id}
+                      id={`${id}-${t.id}`}
+                      role="option"
+                      aria-selected={t.id === chosen}
+                      className={`tex-cell${t.id === chosen ? ' selected' : ''}`}
+                      title={`${t.id} · ${t.name} · ${t.format} ${t.width}×${t.height}`}
+                      data-texture={t.id}
+                      onClick={() => setChosen(t.id)}
+                    >
+                      <div className="tex-thumb checker">
+                        {level >= 0 && <img loading="lazy" src={textureUrl(sceneId, t.id, level)} alt="" />}
+                      </div>
+                      <div className="tex-name">{t.name.split('/').pop()}</div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
-            {shown.map((t) => {
-              const level = thumbLevel(t);
-              return (
-                // The grid owns focus and keyboard handling.
-                // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-                <div
-                  key={t.id}
-                  id={`${id}-${t.id}`}
-                  role="option"
-                  aria-selected={t.id === chosen}
-                  className={`tex-cell${t.id === chosen ? ' selected' : ''}`}
-                  title={`${t.id} · ${t.name} · ${t.format} ${t.width}×${t.height}`}
-                  data-texture={t.id}
-                  onClick={() => setChosen(t.id)}
-                >
-                  <div className="tex-thumb checker">
-                    {level >= 0 && <img loading="lazy" src={textureUrl(sceneId, t.id, level)} alt="" />}
-                  </div>
-                  <div className="tex-name">{t.name.split('/').pop()}</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {texture && <TextureDetail key={texture.id} sceneId={sceneId} texture={texture} />}
-      </div>
+          </>
+        }
+        end={texture && <TextureDetail key={texture.id} sceneId={sceneId} texture={texture} />}
+      />
     </div>
   );
 }

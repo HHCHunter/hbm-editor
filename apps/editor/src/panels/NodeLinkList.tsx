@@ -1,10 +1,10 @@
 import { nodeLabel } from '../scene/sceneModel';
-import { selectNode, setTab, zoomSelected } from '../state/actions';
+import { selectNode, setBrowserMaximised, zoomSelected } from '../state/actions';
 import { useEditor } from '../state/store';
 
 /** Select a scene object and frame it in the scene view. */
 export function showNode(index: number): void {
-  setTab('scene');
+  setBrowserMaximised(false);
   selectNode(index, false, true);
   zoomSelected();
 }

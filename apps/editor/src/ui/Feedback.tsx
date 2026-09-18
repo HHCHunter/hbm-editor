@@ -1,5 +1,4 @@
-/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- a focusable separator is the ARIA window splitter pattern */
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { create } from 'zustand';
 import { CircleAlert, CircleCheck, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react';
 import { Button } from './Button';
@@ -48,56 +47,6 @@ export function ProgressBar({ label, value, max = 100, detail }: ProgressBarProp
       </div>
       {detail && <span className="ui-progress-detail">{detail}</span>}
     </div>
-  );
-}
-
-// ---------------------------------------------------------------- splitter
-
-export interface SplitterProps {
-  label: string;
-  orientation: 'vertical' | 'horizontal';
-  /** Size in px of the pane before the splitter. */
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-}
-
-/** A draggable divider between two panes; arrow keys resize by 16px, Home and End go to the limits. */
-export function Splitter({ label, orientation, value, min, max, onChange }: SplitterProps) {
-  const drag = useRef<{ start: number; value: number } | null>(null);
-  const clamp = (v: number) => Math.max(min, Math.min(max, Math.round(v)));
-  const vertical = orientation === 'vertical';
-  return (
-    <div
-      role="separator"
-      tabIndex={0}
-      aria-label={label}
-      aria-orientation={orientation}
-      aria-valuemin={min}
-      aria-valuemax={max}
-      aria-valuenow={value}
-      className={`ui-splitter ui-splitter--${orientation}`}
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        drag.current = { start: vertical ? e.clientX : e.clientY, value };
-      }}
-      onPointerMove={(e) => {
-        if (!drag.current) return;
-        onChange(clamp(drag.current.value + (vertical ? e.clientX : e.clientY) - drag.current.start));
-      }}
-      onPointerUp={() => (drag.current = null)}
-      onKeyDown={(e) => {
-        const less = vertical ? 'ArrowLeft' : 'ArrowUp';
-        const more = vertical ? 'ArrowRight' : 'ArrowDown';
-        if (e.key === less) onChange(clamp(value - 16));
-        else if (e.key === more) onChange(clamp(value + 16));
-        else if (e.key === 'Home') onChange(min);
-        else if (e.key === 'End') onChange(max);
-        else return;
-        e.preventDefault();
-      }}
-    />
   );
 }
 

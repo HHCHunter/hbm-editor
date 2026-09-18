@@ -46,11 +46,11 @@ test('the main toolbar hides, picks, sets the view mode, and greys out away from
   await page.getByRole('menuitemradio', { name: 'Unlit' }).click();
   await expect(toolbar.getByRole('button', { name: /^View mode/ })).toContainText('Unlit');
 
-  // Away from the scene, scene-only buttons stay in place but can't be used.
-  await page.getByRole('tab', { name: 'Textures' }).click();
+  // With the browsers maximised over the viewport, scene-only buttons stay in place but can't be used.
+  await page.getByRole('button', { name: 'Maximise Browser Panel' }).click();
   await expect(toolbar.getByRole('button', { name: 'Frame All' })).toHaveAttribute('aria-disabled', 'true');
   await expect(toolbar.getByRole('radio', { name: 'Object' })).toHaveAttribute('aria-disabled', 'true');
-  await page.getByRole('tab', { name: 'Scene' }).click();
+  await page.getByRole('button', { name: 'Maximise Browser Panel' }).click();
   await expect(toolbar.getByRole('button', { name: 'Frame All' })).not.toHaveAttribute('aria-disabled', 'true');
 
   // The search box opens the command palette.
@@ -79,7 +79,6 @@ test('outliner rows have a right-click menu, also from the keyboard', async ({ p
   await expect(page.getByRole('tab', { name: 'Materials', selected: true })).toBeVisible();
 
   // Shift+F10 on the focused row opens the same menu; Escape returns to the tree.
-  await page.getByRole('tab', { name: 'Scene' }).click();
   const tree = page.getByRole('tree', { name: 'Scene objects' });
   await tree.focus();
   await page.keyboard.press('Shift+F10');

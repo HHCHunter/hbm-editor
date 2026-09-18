@@ -1,10 +1,5 @@
 /* The Materials tab: list, preview, graph and inspector. */
 
-/* Doubled class: the shared browser-table rule is loaded later and would stretch the list. */
-.mat-list.browser-table {
-  flex: 0 0 clamp(14rem, 26%, 22rem);
-}
-
 .mat-view {
   flex: 1;
   min-width: 0;
@@ -39,6 +34,10 @@
 }
 
 @container (min-width: 68rem) {
+  .mat-preview {
+    width: 16rem;
+  }
+
   .mat-view-top {
     flex-direction: row;
     align-items: flex-start;
@@ -55,7 +54,8 @@
 
 .mat-preview {
   flex: none;
-  width: min(16rem, 100%);
+  /* Smaller when stacked over the graph, so a short browser panel still shows some of it. */
+  width: min(12rem, 100%);
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);

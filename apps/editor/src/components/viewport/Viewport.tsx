@@ -50,7 +50,16 @@ export function Viewport() {
   return (
     <div className="viewport-frame bevel-in">
       <ViewFlagBar />
-      <div className="viewport-canvas" ref={hostRef} data-testid="viewport">
+      {/* Focusable so Alt+1 can bring the keyboard here; camera keys will listen on it. */}
+      <div
+        className="viewport-canvas"
+        ref={hostRef}
+        data-testid="viewport"
+        role="application"
+        aria-label="3D view"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- an application region handles its own keys
+        tabIndex={0}
+      >
         {(loadingScene || loadingModels) && (
           <div className="viewport-banner">
             {loadingScene ? `Opening ${loadingScene}…` : `Loading models ${progress!.loaded} / ${progress!.total}`}

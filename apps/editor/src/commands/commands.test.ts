@@ -1,7 +1,9 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initialEditorState, useEditor } from '../state/store';
 import './index';
-import { resolveChord } from './dispatcher';
+import { BROWSER_AREA } from '../shell/layoutStore';
+import { resolveChord, shortcutContext } from './dispatcher';
 import { fuzzyMatch } from './fuzzy';
 import { reservedReason } from './keybindings';
 import { DEFAULT_KEYMAP, bindingsOf, commandsForChord, useKeymap } from './keymap';
@@ -60,9 +62,9 @@ describe('running commands', () => {
   });
 
   it('runs a command and remembers it as recent', () => {
-    expect(executeCommand('window.textures')).toBe(true);
-    expect(state().tab).toBe('textures');
-    expect(recentCommands()[0]).toBe('window.textures');
+    expect(executeCommand('window.materials')).toBe(true);
+    expect(state().browser).toBe('materials');
+    expect(recentCommands()[0]).toBe('window.materials');
   });
 
   it('reports a command that throws rather than losing the error', () => {
@@ -81,24 +83,45 @@ describe('running commands', () => {
   });
 });
 
+const VIEW = { dialog: null, sceneView: true };
+const NO_VIEW = { dialog: null, sceneView: false };
+
 describe('shortcuts', () => {
-  it('only change the 3D view while it is showing', () => {
-    expect(resolveChord('W', { dialog: null, tab: 'scene' })).toBe('view.wireframe');
-    expect(resolveChord('W', { dialog: null, tab: 'textures' })).toBeNull();
-    expect(resolveChord('F', { dialog: null, tab: 'localisation' })).toBeNull();
+  it('only change the 3D view while it is showing and the keyboard is not in a browser', () => {
+    expect(resolveChord('W', VIEW)).toBe('view.wireframe');
+    expect(resolveChord('W', NO_VIEW)).toBeNull();
+    expect(resolveChord('F', NO_VIEW)).toBeNull();
+
+    const browser = document.createElement('div');
+    browser.dataset.area = BROWSER_AREA;
+    const field = browser.appendChild(document.createElement('button'));
+    expect(shortcutContext({ dialog: null, browserMaximised: false }, field).sceneView).toBe(false);
+    expect(shortcutContext({ dialog: null, browserMaximised: false }, document.body).sceneView).toBe(true);
+    expect(shortcutContext({ dialog: null, browserMaximised: true }, document.body).sceneView).toBe(false);
+  });
+
+  it('grey out 3D view commands while the browsers are maximised, with the reason', () => {
+    state().update((s) => {
+      s.scene = { graph: { nodes: [] } } as never;
+      s.browserMaximised = true;
+    });
+    expect(executeCommand('camera.frameAll')).toBe(false);
+    expect(state().statusMsg).toBe('Frame All: Restore the viewport to use this');
+    expect(executeCommand('window.maximiseBrowser')).toBe(true);
+    expect(state().browserMaximised).toBe(false);
   });
 
   it('switch tabs and open the palette from anywhere, but nothing else runs over a dialog', () => {
-    expect(resolveChord('Alt+2', { dialog: null, tab: 'scene' })).toBe('window.textures');
-    expect(resolveChord('F1', { dialog: 'settings', tab: 'scene' })).toBe('help.commandPalette');
-    expect(resolveChord('H', { dialog: 'settings', tab: 'scene' })).toBeNull();
+    expect(resolveChord('Alt+2', VIEW)).toBe('window.textures');
+    expect(resolveChord('F1', { dialog: 'settings', sceneView: true })).toBe('help.commandPalette');
+    expect(resolveChord('H', { dialog: 'settings', sceneView: true })).toBeNull();
   });
 
   it('follow the user’s own bindings over the defaults', () => {
     useKeymap.getState().setBindings('camera.frameSelected', ['K']);
     expect(bindingsOf('camera.frameSelected')).toEqual(['K']);
-    expect(resolveChord('K', { dialog: null, tab: 'scene' })).toBe('camera.frameSelected');
-    expect(resolveChord('F', { dialog: null, tab: 'scene' })).toBeNull();
+    expect(resolveChord('K', VIEW)).toBe('camera.frameSelected');
+    expect(resolveChord('F', VIEW)).toBeNull();
     expect(commandsForChord('K')).toEqual(['camera.frameSelected']);
     useKeymap.getState().reset('camera.frameSelected');
     expect(bindingsOf('camera.frameSelected')).toEqual(['F']);
@@ -106,8 +129,8 @@ describe('shortcuts', () => {
 
   it('prefer the narrower scope when two commands share a key', () => {
     useKeymap.getState().setBindings('file.settings', ['G']);
-    expect(resolveChord('G', { dialog: null, tab: 'scene' })).toBe('view.grid');
-    expect(resolveChord('G', { dialog: null, tab: 'textures' })).toBe('file.settings');
+    expect(resolveChord('G', VIEW)).toBe('view.grid');
+    expect(resolveChord('G', NO_VIEW)).toBe('file.settings');
   });
 });
 

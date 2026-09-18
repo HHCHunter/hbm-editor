@@ -1,7 +1,7 @@
 import type { HiddenReasonDTO } from '@hbm/protocol';
 import { meshNodeIndices, positionBounds } from '../scene/sceneModel';
 import { frame } from '../viewport/camera';
-import { DEFAULT_CAMERA, VIEW_FLAG_TITLES, useEditor, type CameraState, type DialogName, type SelMode, type Tab, type ViewFlag } from './store';
+import { DEFAULT_CAMERA, VIEW_FLAG_TITLES, useEditor, type BrowserTab, type CameraState, type DialogName, type SelMode, type ViewFlag } from './store';
 
 const store = () => useEditor.getState();
 
@@ -21,9 +21,17 @@ export function openDialog(dialog: DialogName | null): void {
   });
 }
 
-export function setTab(tab: Tab): void {
+/** Show a browser in the panel under the viewport. */
+export function showBrowser(tab: BrowserTab): void {
   store().update((s) => {
-    s.tab = tab;
+    s.browser = tab;
+  });
+}
+
+/** Let the browser panel fill the centre, or give the viewport back. */
+export function setBrowserMaximised(maximised: boolean): void {
+  store().update((s) => {
+    s.browserMaximised = maximised;
   });
 }
 
@@ -31,7 +39,7 @@ export function setTab(tab: Tab): void {
 export function showTexture(id: number): void {
   store().update((s) => {
     s.textureId = id;
-    s.tab = 'textures';
+    s.browser = 'textures';
   });
 }
 
@@ -39,7 +47,7 @@ export function showTexture(id: number): void {
 export function showMaterial(slot: number): void {
   store().update((s) => {
     s.materialSlot = slot;
-    s.tab = 'materials';
+    s.browser = 'materials';
   });
 }
 

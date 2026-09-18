@@ -13,6 +13,7 @@ export interface TabsProps<T extends string> {
   tabs: readonly TabItem<T>[];
   value: T;
   onChange: (id: T) => void;
+  onTabDoubleClick?: (id: T) => void;
   /** Prefix for tab and panel ids, so TabPanel can point back at its tab. */
   idPrefix: string;
   className?: string;
@@ -22,7 +23,7 @@ export const tabId = (prefix: string, id: string) => `${prefix}-tab-${id}`;
 export const panelId = (prefix: string, id: string) => `${prefix}-panel-${id}`;
 
 /** A tab list: arrow keys move between tabs and select them (automatic activation). */
-export function Tabs<T extends string>({ label, tabs, value, onChange, idPrefix, className }: TabsProps<T>) {
+export function Tabs<T extends string>({ label, tabs, value, onChange, onTabDoubleClick, idPrefix, className }: TabsProps<T>) {
   const roving = useRovingFocus<HTMLDivElement>({ orientation: 'horizontal' });
   return (
     <div
@@ -49,6 +50,7 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, idPrefix,
           aria-keyshortcuts={tab.shortcut}
           className={`ui-tab${tab.id === value ? ' is-selected' : ''}`}
           onClick={() => onChange(tab.id)}
+          onDoubleClick={onTabDoubleClick && (() => onTabDoubleClick(tab.id))}
         >
           {tab.label}
         </button>

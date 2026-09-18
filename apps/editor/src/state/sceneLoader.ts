@@ -45,7 +45,7 @@ export async function openScene(id: string): Promise<void> {
       s.textureId = null;
       s.undoStack = [];
       s.redoStack = [];
-      s.tab = 'scene';
+      s.browserMaximised = false;
       s.cam = bounds ? frame(DEFAULT_CAMERA, bounds) : { ...DEFAULT_CAMERA };
       s.statusMsg = `Opened ${id}: ${graph.nodes.length} objects, ${graph.roots.length} models`;
     });

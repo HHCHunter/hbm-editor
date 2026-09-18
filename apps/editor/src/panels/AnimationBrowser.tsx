@@ -4,6 +4,7 @@ import { getSceneAnimations } from '../api/endpoints';
 import { useAsync } from '../hooks/useAsync';
 import { useEditor } from '../state/store';
 import { Button, DataTable, PanelState, SearchField, type Column } from '../ui';
+import { BrowserSplit } from './BrowserSplit';
 import { NodeLinkList } from './NodeLinkList';
 
 const ROOT_TRACK = 0x38;
@@ -117,31 +118,36 @@ export function AnimationBrowser() {
         />
       </div>
       <p className="browser-summary">Playback isn&apos;t available yet: the game&apos;s clip format is only partly understood.</p>
-      <div className="browser-body">
-        {data.status === 'loading' && <PanelState variant="loading" title="Reading animations…" />}
-        {data.status === 'error' && <PanelState variant="error" title="Couldn't read this scene's animations" message={data.error} />}
-        {data.value && (
-          <DataTable
-            label="Animation clips"
-            className="browser-table"
-            columns={COLUMNS}
-            rows={shown}
-            rowKey={(c) => c.index}
-            selectedKey={chosen}
-            onSelect={setChosen}
-            emptyState={
-              <PanelState
-                variant="empty"
-                layout="inline"
-                title={filter ? `No clips match “${filter}”` : 'This scene has no clips'}
-                action={filter ? { label: 'Clear Filter', onClick: () => setFilter('') } : undefined}
+      <BrowserSplit
+        id="animations.detail"
+        label="Resize the clip details"
+        start={
+          <>
+            {data.status === 'loading' && <PanelState variant="loading" title="Reading animations…" />}
+            {data.status === 'error' && <PanelState variant="error" title="Couldn't read this scene's animations" message={data.error} />}
+            {data.value && (
+              <DataTable
+                label="Animation clips"
+                className="browser-table"
+                columns={COLUMNS}
+                rows={shown}
+                rowKey={(c) => c.index}
+                selectedKey={chosen}
+                onSelect={setChosen}
+                emptyState={
+                  <PanelState
+                    variant="empty"
+                    layout="inline"
+                    title={filter ? `No clips match “${filter}”` : 'This scene has no clips'}
+                    action={filter ? { label: 'Clear Filter', onClick: () => setFilter('') } : undefined}
+                  />
+                }
               />
-            }
-          />
-        )}
-        {data.value &&
-          (clip ? <ClipDetail key={clip.index} clip={clip} data={data.value} onBack={() => setChosen(null)} /> : <Collections data={data.value} />)}
-      </div>
+            )}
+          </>
+        }
+        end={data.value && (clip ? <ClipDetail key={clip.index} clip={clip} data={data.value} onBack={() => setChosen(null)} /> : <Collections data={data.value} />)}
+      />
     </div>
   );
 }

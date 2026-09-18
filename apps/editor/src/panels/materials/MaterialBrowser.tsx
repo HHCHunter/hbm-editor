@@ -4,6 +4,7 @@ import { getMaterial, listMaterials, listTextures } from '../../api/endpoints';
 import { useAsync } from '../../hooks/useAsync';
 import { useEditor } from '../../state/store';
 import { DataTable, PanelState, SearchField, Select, type Column } from '../../ui';
+import { BrowserSplit } from '../BrowserSplit';
 import { NodeLinkList } from '../NodeLinkList';
 import { MaterialGraph, type GraphSelection } from './MaterialGraph';
 import { MaterialInspector } from './MaterialInspector';
@@ -112,37 +113,49 @@ export function MaterialBrowser() {
           onChange={setClassName}
         />
       </div>
-      <div className="browser-body">
-        {materials.status === 'loading' && <PanelState variant="loading" title="Reading materials…" />}
-        {materials.status === 'error' && <PanelState variant="error" title="Couldn't read this scene's materials" message={materials.error} />}
-        {materials.value && (
-          <DataTable
-            label="Materials"
-            className="browser-table mat-list"
-            columns={COLUMNS}
-            rows={shown}
-            rowKey={(m) => m.slot}
-            selectedKey={chosen}
-            onSelect={choose}
-            emptyState={
-              <PanelState
-                variant="empty"
-                layout="inline"
-                title={filter || className ? 'No materials match' : 'This scene has no materials'}
-                action={filter || className ? { label: 'Clear Filters', onClick: () => (setFilter(''), setClassName('')) } : undefined}
+      <BrowserSplit
+        id="materials.list"
+        label="Resize the material list"
+        fixed="start"
+        defaultSize="clamp(14rem, 26%, 22rem)"
+        min={12}
+        minOther={24}
+        start={
+          <>
+            {materials.status === 'loading' && <PanelState variant="loading" title="Reading materials…" />}
+            {materials.status === 'error' && <PanelState variant="error" title="Couldn't read this scene's materials" message={materials.error} />}
+            {materials.value && (
+              <DataTable
+                label="Materials"
+                className="browser-table mat-list"
+                columns={COLUMNS}
+                rows={shown}
+                rowKey={(m) => m.slot}
+                selectedKey={chosen}
+                onSelect={choose}
+                emptyState={
+                  <PanelState
+                    variant="empty"
+                    layout="inline"
+                    title={filter || className ? 'No materials match' : 'This scene has no materials'}
+                    action={filter || className ? { label: 'Clear Filters', onClick: () => (setFilter(''), setClassName('')) } : undefined}
+                  />
+                }
               />
-            }
-          />
-        )}
-        {materials.value &&
+            )}
+          </>
+        }
+        end={
+          materials.value &&
           (chosen !== null && materials.value.some((m) => m.slot === chosen) ? (
             <MaterialView key={chosen} sceneId={sceneId} slot={chosen} textures={textures} />
           ) : (
             <div className="mat-view">
               <PanelState variant="empty" title="Pick a material" message="Its textures, features and render state appear here as a graph, with a preview." />
             </div>
-          ))}
-      </div>
+          ))
+        }
+      />
     </div>
   );
 }

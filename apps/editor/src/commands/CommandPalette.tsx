@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Box, Camera, Folder, FolderTree, Lightbulb, Search, Shapes, TerminalSquare, type LucideIcon } from 'lucide-react';
 import type { SceneNodeDTO } from '@hbm/protocol';
 import { nodeLabel } from '../scene/sceneModel';
-import { openDialog, selectNode, setTab, zoomSelected } from '../state/actions';
+import { openDialog, selectNode, setBrowserMaximised, zoomSelected } from '../state/actions';
 import { useEditor } from '../state/store';
 import { useFocusTrap } from '../ui/hooks/useFocusTrap';
 import { Kbd } from '../ui';
@@ -60,7 +60,7 @@ function Highlight({ text, positions }: { text: string; positions: number[] }): 
 }
 
 function showObject(index: number) {
-  setTab('scene');
+  setBrowserMaximised(false);
   selectNode(index, false, true);
   zoomSelected();
 }

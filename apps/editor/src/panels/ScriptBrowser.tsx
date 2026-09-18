@@ -5,6 +5,7 @@ import { useAsync } from '../hooks/useAsync';
 import { NodeLinkList } from './NodeLinkList';
 import { useEditor } from '../state/store';
 import { Checkbox, DataTable, PanelState, SearchField, type Column } from '../ui';
+import { BrowserSplit } from './BrowserSplit';
 
 const COLUMNS: Column<ScriptCreatorDTO>[] = [
   { id: 'name', header: 'Script class', sortValue: (c) => c.name, cell: (c) => c.name },
@@ -74,30 +75,36 @@ export function ScriptBrowser() {
           {unmatched.length > 0 && ` ${unmatched.length} object(s) ask for a script the DLL doesn't have.`}
         </p>
       )}
-      <div className="browser-body">
-        {scripts.status === 'loading' && <PanelState variant="loading" title="Reading mission scripts…" />}
-        {scripts.status === 'error' && <PanelState variant="error" title="Couldn't read the mission scripts" message={scripts.error} />}
-        {data && (
-          <DataTable
-            label="Script classes"
-            className="browser-table"
-            columns={COLUMNS}
-            rows={shown}
-            rowKey={(c) => c.name}
-            selectedKey={chosen}
-            onSelect={setChosen}
-            emptyState={
-              <PanelState
-                variant="empty"
-                layout="inline"
-                title={filter ? `No script classes match “${filter}”` : 'No script classes'}
-                action={filter ? { label: 'Clear Filter', onClick: () => setFilter('') } : undefined}
+      <BrowserSplit
+        id="scripts.detail"
+        label="Resize the script class details"
+        start={
+          <>
+            {scripts.status === 'loading' && <PanelState variant="loading" title="Reading mission scripts…" />}
+            {scripts.status === 'error' && <PanelState variant="error" title="Couldn't read the mission scripts" message={scripts.error} />}
+            {data && (
+              <DataTable
+                label="Script classes"
+                className="browser-table"
+                columns={COLUMNS}
+                rows={shown}
+                rowKey={(c) => c.name}
+                selectedKey={chosen}
+                onSelect={setChosen}
+                emptyState={
+                  <PanelState
+                    variant="empty"
+                    layout="inline"
+                    title={filter ? `No script classes match “${filter}”` : 'No script classes'}
+                    action={filter ? { label: 'Clear Filter', onClick: () => setFilter('') } : undefined}
+                  />
+                }
               />
-            }
-          />
-        )}
-        {creator && <ScriptDetail key={creator.name} creator={creator} />}
-      </div>
+            )}
+          </>
+        }
+        end={creator && <ScriptDetail key={creator.name} creator={creator} />}
+      />
     </div>
   );
 }
