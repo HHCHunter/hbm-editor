@@ -1,7 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SceneGraphDTO, SceneNodeDTO } from '@hbm/protocol';
 import { childIndex, effectiveFlags } from '../scene/sceneModel';
-import { pickFromViewport, selectNode, setAllExpanded, toggleHideSelection, toggleShown, zoomExtents } from './actions';
+import {
+  isolateSelection,
+  pickFromViewport,
+  selectChildren,
+  selectNode,
+  selectParents,
+  selectSameClass,
+  setAllExpanded,
+  toggleHideSelection,
+  toggleShown,
+  zoomExtents,
+} from './actions';
 import { initialEditorState, useEditor, type LoadedScene } from './store';
 
 const state = () => useEditor.getState();
@@ -95,5 +106,37 @@ describe('outliner and camera', () => {
     const { cam } = state();
     expect([cam.tx, cam.ty, cam.tz]).toEqual([0, 25, 10]);
     expect(cam.dist).toBeGreaterThan(100);
+  });
+});
+
+describe('selection by hierarchy and class', () => {
+  it('selects children and parents', () => {
+    selectNode(0, false);
+    selectChildren();
+    expect(state().sel).toEqual([1]);
+    selectChildren();
+    expect(state().sel).toEqual([2]);
+    selectParents();
+    expect(state().sel).toEqual([1]);
+  });
+
+  it('selects every object of the same class', () => {
+    state().update((s) => {
+      s.scene!.graph.nodes[2]!.className = 'ZGEOM';
+      s.scene!.graph.nodes[3]!.className = 'ZGEOM';
+    });
+    selectNode(2, false);
+    selectSameClass();
+    expect(state().sel).toEqual([2, 3]);
+  });
+});
+
+describe('isolate', () => {
+  it('hides everything but the selection, its ancestors and descendants, as one undo step', () => {
+    selectNode(1, false);
+    isolateSelection();
+    expect(state().hidden).toEqual({ 3: true });
+    state().undo();
+    expect(state().hidden).toEqual({});
   });
 });

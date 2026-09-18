@@ -365,18 +365,34 @@ export function MenuBar({ label, menus, className, children }: MenuBarProps) {
   );
 }
 
-/** Open a context menu at the pointer: `const menu = useContextMenu(); <div onContextMenu={menu.open(items)}>`. */
+/**
+ * A context menu: `open(items)` handles a right-click, `openAt(items, x, y)` opens it from the
+ * keyboard (the Menu key or Shift+F10). Escape gives focus back to where it was.
+ */
 export function useContextMenu(label = 'Context menu') {
   const [state, setState] = useState<{ items: MenuEntry[]; x: number; y: number } | null>(null);
+  const returnTo = useRef<HTMLElement | null>(null);
+  const openAt = useCallback((items: MenuEntry[], x: number, y: number) => {
+    returnTo.current = document.activeElement as HTMLElement | null;
+    setState({ items, x, y });
+  }, []);
   const open = useCallback(
     (items: MenuEntry[]) => (e: React.MouseEvent) => {
       e.preventDefault();
-      setState({ items, x: e.clientX, y: e.clientY });
+      openAt(items, e.clientX, e.clientY);
     },
-    [],
+    [openAt],
   );
   const element = state ? (
-    <MenuPopup items={state.items} label={label} anchor={{ x: state.x, y: state.y }} onClose={() => setState(null)} />
+    <MenuPopup
+      items={state.items}
+      label={label}
+      anchor={{ x: state.x, y: state.y }}
+      onClose={(reason) => {
+        setState(null);
+        if (reason === 'escape') returnTo.current?.focus();
+      }}
+    />
   ) : null;
-  return { open, element };
+  return { open, openAt, element };
 }

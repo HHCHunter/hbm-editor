@@ -19,13 +19,13 @@ async function openScene(page: Page) {
 
 test('the command palette finds and runs commands, and says why one cannot run', async ({ page }) => {
   await openScene(page);
-  const wireframe = page.getByRole('menuitemcheckbox', { name: 'Wireframe' });
+  const wireframe = page.getByRole('menuitemradio', { name: 'Wireframe' });
 
   await page.keyboard.press('Control+Shift+P');
   const palette = page.getByRole('dialog', { name: 'Command palette' });
   await expect(palette).toBeVisible();
-  await page.keyboard.type('wirefr');
-  await expect(palette.getByRole('option').first()).toContainText('Wireframe');
+  await page.keyboard.type('toggle wirefr');
+  await expect(palette.getByRole('option').first()).toContainText('Toggle Wireframe');
   await page.keyboard.press('Enter');
   await expect(palette).toBeHidden();
 

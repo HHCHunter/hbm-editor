@@ -1,6 +1,10 @@
 import {
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Copy,
   Crosshair,
   Expand,
+  Focus,
   EyeOff,
   FolderOpen,
   HardDrive,
@@ -11,15 +15,21 @@ import {
   Scan,
   Search,
   Settings,
+  Sun,
+  SunDim,
   Undo2,
 } from 'lucide-react';
 import type { HiddenReasonDTO } from '@hbm/protocol';
 import {
   clearSelection,
   invertSelection,
+  isolateSelection,
   openDialog,
   resetViewAngle,
   selectAll,
+  selectChildren,
+  selectParents,
+  selectSameClass,
   setAllExpanded,
   setSelMode,
   setTab,
@@ -34,7 +44,8 @@ import {
   zoomExtents,
   zoomSelected,
 } from '../state/actions';
-import type { Tab, ViewFlag } from '../state/store';
+import { nodeLabel } from '../scene/sceneModel';
+import { useEditor, type Tab, type ViewFlag } from '../state/store';
 import { toast } from '../ui';
 import { openPalette } from './palette';
 import type { CommandContext, EditorCommand } from './types';
@@ -42,6 +53,26 @@ import type { CommandContext, EditorCommand } from './types';
 const needScene = ({ state }: CommandContext) => (state.scene ? null : 'Open a scene first');
 const needSelection = ({ state }: CommandContext) =>
   !state.scene ? 'Open a scene first' : state.sel.length ? null : 'Select one or more objects first';
+/** Commands that change or use the 3D view. They stay in place but grey out while another tab shows. */
+const needSceneView = (ctx: CommandContext) => needScene(ctx) ?? (ctx.state.tab === 'scene' ? null : 'Show the Scene tab to use this');
+const needSelectionInView = (ctx: CommandContext) => needSceneView(ctx) ?? needSelection(ctx);
+
+type ViewMode = 'lit' | 'unlit' | 'wireframe';
+const viewMode = ({ state }: CommandContext): ViewMode => (state.view.W ? 'wireframe' : state.view.Li ? 'lit' : 'unlit');
+function setViewMode(mode: ViewMode): void {
+  useEditor.getState().update((s) => {
+    s.view.W = mode === 'wireframe';
+    if (mode !== 'wireframe') s.view.Li = mode === 'lit';
+    s.statusMsg = `${mode[0]!.toUpperCase()}${mode.slice(1)} view`;
+  });
+}
+
+async function copy(text: string, what: string): Promise<void> {
+  await navigator.clipboard.writeText(text);
+  useEditor.getState().status(`Copied ${what}: ${text.length > 80 ? `${text.slice(0, 80)}…` : text}`);
+}
+
+const selectedNodes = ({ state }: CommandContext) => state.sel.map((i) => state.scene?.graph.nodes[i]).filter((n) => !!n);
 
 const viewFlag = (id: string, flag: ViewFlag, title: string, description: string, icon?: EditorCommand['icon']): EditorCommand => ({
   id,
@@ -50,6 +81,7 @@ const viewFlag = (id: string, flag: ViewFlag, title: string, description: string
   description,
   icon,
   scope: 'sceneView',
+  disabledReason: needSceneView,
   checked: ({ state }) => state.view[flag],
   run: () => toggleViewFlag(flag),
 });
@@ -61,6 +93,7 @@ const shown = (reason: HiddenReasonDTO, title: string, description: string): Edi
   description,
   keywords: ['show', 'hidden geometry'],
   scope: 'sceneView',
+  disabledReason: needSceneView,
   checked: ({ state }) => state.filters.show[reason],
   run: () => toggleShown(reason),
 });
@@ -138,6 +171,7 @@ export const COMMANDS: EditorCommand[] = [
     icon: EyeOff,
     keywords: ['visibility', 'unhide', 'show'],
     disabledReason: needSelection,
+    checked: ({ state }) => state.sel.length > 0 && state.sel.every((i) => state.hidden[i]),
     run: toggleHideSelection,
   },
   {
@@ -157,6 +191,7 @@ export const COMMANDS: EditorCommand[] = [
     icon: Lock,
     keywords: ['lock', 'unfreeze'],
     disabledReason: needSelection,
+    checked: ({ state }) => state.sel.length > 0 && state.sel.every((i) => state.frozen[i]),
     run: toggleFreezeSelection,
   },
   {
@@ -167,6 +202,42 @@ export const COMMANDS: EditorCommand[] = [
     keywords: ['unlock'],
     disabledReason: ({ state }) => (Object.keys(state.frozen).length ? null : 'Nothing is frozen'),
     run: unfreezeAll,
+  },
+  {
+    id: 'edit.isolate',
+    title: 'Isolate Selection',
+    category: 'Edit',
+    description: 'Hide everything except the selected objects. Undo, or Unhide All, brings the rest back.',
+    icon: Focus,
+    keywords: ['solo', 'hide others', 'hide unselected'],
+    disabledReason: needSelection,
+    run: isolateSelection,
+  },
+  {
+    id: 'edit.copyName',
+    title: 'Copy Name',
+    category: 'Edit',
+    icon: Copy,
+    disabledReason: needSelection,
+    run: (ctx) => copy(selectedNodes(ctx).map(nodeLabel).join('\n'), 'name'),
+  },
+  {
+    id: 'edit.copyPath',
+    title: 'Copy Path',
+    category: 'Edit',
+    description: 'The full path, e.g. Heaven!Staff!Bartender',
+    icon: Copy,
+    disabledReason: needSelection,
+    run: (ctx) => copy(selectedNodes(ctx).map((n) => n.name).join('\n'), 'path'),
+  },
+  {
+    id: 'edit.copyIndex',
+    title: 'Copy Index',
+    category: 'Edit',
+    description: 'The object’s position in the scene’s node list',
+    icon: Copy,
+    disabledReason: needSelection,
+    run: (ctx) => copy(selectedNodes(ctx).map((n) => String(n.index)).join('\n'), 'index'),
   },
 
   // ---------------------------------------------------------------- selection
@@ -194,11 +265,34 @@ export const COMMANDS: EditorCommand[] = [
     run: invertSelection,
   },
   {
+    id: 'selection.children',
+    title: 'Select Children',
+    category: 'Selection',
+    disabledReason: needSelection,
+    run: selectChildren,
+  },
+  {
+    id: 'selection.parent',
+    title: 'Select Parent',
+    category: 'Selection',
+    disabledReason: needSelection,
+    run: selectParents,
+  },
+  {
+    id: 'selection.sameClass',
+    title: 'Select All of This Class',
+    category: 'Selection',
+    keywords: ['same type', 'similar'],
+    disabledReason: needSelection,
+    run: selectSameClass,
+  },
+  {
     id: 'selection.pickObjects',
     title: 'Clicks Select Objects',
     category: 'Selection',
     description: 'A viewport click selects the object under the pointer',
     radio: true,
+    disabledReason: needSceneView,
     checked: ({ state }) => state.selMode === 'Geom',
     run: () => setSelMode('Geom'),
   },
@@ -208,6 +302,7 @@ export const COMMANDS: EditorCommand[] = [
     category: 'Selection',
     description: 'A viewport click selects the outermost group around the object under the pointer',
     radio: true,
+    disabledReason: needSceneView,
     checked: ({ state }) => state.selMode === 'Group',
     run: () => setSelMode('Group'),
   },
@@ -221,7 +316,7 @@ export const COMMANDS: EditorCommand[] = [
     icon: Crosshair,
     keywords: ['zoom', 'focus', 'look at'],
     scope: 'sceneView',
-    disabledReason: needSelection,
+    disabledReason: needSelectionInView,
     run: zoomSelected,
   },
   {
@@ -232,7 +327,7 @@ export const COMMANDS: EditorCommand[] = [
     icon: Expand,
     keywords: ['zoom extents', 'fit'],
     scope: 'sceneView',
-    disabledReason: needScene,
+    disabledReason: needSceneView,
     run: zoomExtents,
   },
   {
@@ -243,7 +338,7 @@ export const COMMANDS: EditorCommand[] = [
     icon: RotateCcw,
     keywords: ['reset'],
     scope: 'sceneView',
-    disabledReason: needScene,
+    disabledReason: needSceneView,
     run: resetViewAngle,
   },
   ...SIDES.map(
@@ -253,13 +348,34 @@ export const COMMANDS: EditorCommand[] = [
       category: 'Camera',
       keywords: ['view', side.toLowerCase(), 'angle'],
       scope: 'sceneView',
-      disabledReason: needScene,
+      disabledReason: needSceneView,
       run: () => viewFrom(side),
     }),
   ),
 
   // ---------------------------------------------------------------- view
-  viewFlag('view.wireframe', 'W', 'Wireframe', 'Draw models as outlines', Scan),
+  ...(
+    [
+      ['lit', 'Lit', 'Shade models by the light', Sun],
+      ['unlit', 'Unlit', 'Flat colours and textures, without lighting', SunDim],
+      ['wireframe', 'Wireframe', 'Draw models as outlines', Scan],
+    ] as const
+  ).map(
+    ([mode, title, description, icon]): EditorCommand => ({
+      id: `view.mode${title}`,
+      title,
+      category: 'View',
+      description,
+      icon,
+      keywords: ['view mode', 'shading'],
+      radio: true,
+      scope: 'sceneView',
+      disabledReason: needSceneView,
+      checked: (ctx) => viewMode(ctx) === mode,
+      run: () => setViewMode(mode),
+    }),
+  ),
+  viewFlag('view.wireframe', 'W', 'Toggle Wireframe', 'Switch between wireframe and shaded drawing', Scan),
   viewFlag('view.lighting', 'Li', 'Lighting', 'Shade models by the light; off shows flat colours'),
   viewFlag('view.textures', 'Tx', 'Textures', 'Draw models with their textures'),
   viewFlag('view.fog', 'F', 'Fog', 'Fade distant models'),
@@ -277,6 +393,7 @@ export const COMMANDS: EditorCommand[] = [
     id: 'outliner.expandAll',
     title: 'Expand All',
     category: 'Outliner',
+    icon: ChevronsUpDown,
     description: 'Open every group in the outliner',
     disabledReason: needScene,
     run: () => setAllExpanded(true),
@@ -285,6 +402,7 @@ export const COMMANDS: EditorCommand[] = [
     id: 'outliner.collapseAll',
     title: 'Collapse All',
     category: 'Outliner',
+    icon: ChevronsDownUp,
     description: 'Close every group in the outliner',
     disabledReason: needScene,
     run: () => setAllExpanded(false),

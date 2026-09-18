@@ -1339,3 +1339,61 @@
 .ui-btn[aria-disabled='true']:active {
   background: var(--face);
 }
+
+/* ------------------------------------------------------------ menu button, split button, segmented */
+
+.ui-menu-button-chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-left: calc(var(--sp-1) * -1);
+}
+
+.ui-menu-button[aria-expanded='true'],
+.ui-split-arrow[aria-expanded='true'] {
+  box-shadow: var(--bevel-pressed);
+}
+
+.ui-split {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.ui-split > .ui-btn:first-child {
+  padding-right: var(--sp-2);
+}
+
+.ui-split-arrow {
+  min-width: 1.125rem;
+  padding: 0 1px;
+}
+
+.ui-split-arrow .ui-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.ui-segmented {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.ui-segment {
+  box-shadow: var(--bevel-out-thin);
+}
+
+.ui-segment.is-checked {
+  background: var(--c-selection);
+  color: var(--c-selection-text);
+  box-shadow: inset 1px 1px 0 #000, inset -1px -1px 0 var(--navy-light);
+}
+
+.ui-segment.is-checked:hover:not(:disabled) {
+  background: #16357f;
+  box-shadow: inset 1px 1px 0 #000, inset -1px -1px 0 var(--navy-light);
+}
+
+.ui-segment[aria-disabled='true'].is-checked {
+  background: var(--face-dark);
+  color: var(--c-text-disabled);
+  box-shadow: var(--bevel-pressed);
+}

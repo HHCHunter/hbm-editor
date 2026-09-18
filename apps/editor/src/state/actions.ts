@@ -279,6 +279,75 @@ function clearNodeFlag(key: 'hidden' | 'frozen', verb: string): void {
 export const unhideAll = () => clearNodeFlag('hidden', 'Unhide');
 export const unfreezeAll = () => clearNodeFlag('frozen', 'Unfreeze');
 
+/**
+ * Hide everything but the selection, its ancestors (hiding one would hide the selection too) and
+ * its descendants, as one undo step.
+ */
+export function isolateSelection(): void {
+  const { scene, sel, hidden } = store();
+  if (!scene || !sel.length) return setStatus('Nothing selected');
+  const nodes = scene.graph.nodes;
+  const keep = new Set<number>();
+  for (const i of sel) {
+    for (let p = i; p >= 0; p = nodes[p]!.parent) keep.add(p);
+    const stack = [i];
+    while (stack.length) {
+      const at = stack.pop()!;
+      keep.add(at);
+      stack.push(...(scene.children[at + 1] ?? []));
+    }
+  }
+  const before = { ...hidden };
+  const after: Record<number, boolean> = {};
+  for (const node of nodes) if (!keep.has(node.index)) after[node.index] = true;
+  store().run({
+    label: `Isolate ${sel.length} object(s)`,
+    apply: (s) => {
+      s.hidden = { ...after };
+    },
+    revert: (s) => {
+      s.hidden = { ...before };
+    },
+  });
+}
+
+/** Select the children of the selected objects. */
+export function selectChildren(): void {
+  const { scene, sel } = store();
+  if (!scene) return;
+  const next = [...new Set(sel.flatMap((i) => scene.children[i + 1] ?? []))];
+  if (!next.length) return setStatus('The selection has no children');
+  store().update((s) => {
+    s.sel = next;
+    for (const i of sel) s.expanded[i] = true;
+    s.statusMsg = `${next.length} children selected`;
+  });
+}
+
+/** Select the parents of the selected objects. */
+export function selectParents(): void {
+  const { scene, sel } = store();
+  if (!scene) return;
+  const next = [...new Set(sel.map((i) => scene.graph.nodes[i]!.parent).filter((p) => p >= 0))];
+  if (!next.length) return setStatus('The selection is at the top of the scene');
+  store().update((s) => {
+    s.sel = next;
+    s.statusMsg = next.length === 1 ? `Selected ${scene.graph.nodes[next[0]!]!.name}` : `${next.length} parents selected`;
+  });
+}
+
+/** Select every object of the same class as the selection. */
+export function selectSameClass(): void {
+  const { scene, sel } = store();
+  if (!scene) return;
+  const classes = new Set(sel.map((i) => scene.graph.nodes[i]!.className ?? `type ${scene.graph.nodes[i]!.typeId}`));
+  const next = scene.graph.nodes.filter((n) => classes.has(n.className ?? `type ${n.typeId}`)).map((n) => n.index);
+  store().update((s) => {
+    s.sel = next;
+    s.statusMsg = `${next.length} objects of class ${[...classes].join(', ')} selected`;
+  });
+}
+
 export function setSelMode(mode: SelMode): void {
   store().update((s) => {
     s.selMode = mode;

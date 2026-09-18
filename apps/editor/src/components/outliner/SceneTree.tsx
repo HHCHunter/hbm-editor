@@ -5,7 +5,8 @@ import type { SceneNodeDTO } from '@hbm/protocol';
 import { CommandButton } from '../../commands/CommandButton';
 import { expandSubtree, selectNode, selectRange, toggleExpanded, zoomSelected } from '../../state/actions';
 import { useEditor } from '../../state/store';
-import { PanelState, RadioGroup, SearchField, Toolbar, Tree, type TreeItem } from '../../ui';
+import { objectMenu } from '../../commands/objectMenu';
+import { PanelState, RadioGroup, SearchField, Toolbar, Tree, useContextMenu, type TreeItem } from '../../ui';
 import { buildTreeRows, type TreeRow } from './treeRows';
 
 const KIND_ICONS: Record<SceneNodeDTO['kind'], LucideIcon> = {
@@ -65,25 +66,10 @@ export function SceneTree() {
   }, [first]);
 
   const matchCount = search ? rows.length : null;
+  const context = useContextMenu('Object');
 
   return (
     <div className="tree-area">
-      <Toolbar label="Outliner" orientation="vertical" className="tree-side">
-        <CommandButton command="selection.all">All</CommandButton>
-        <CommandButton command="selection.none">None</CommandButton>
-        <CommandButton command="selection.invert">Invert</CommandButton>
-        <CommandButton command="camera.frameSelected" icon={null}>
-          Frame
-        </CommandButton>
-        <CommandButton command="edit.hide" icon={null}>
-          Hide
-        </CommandButton>
-        <CommandButton command="edit.freeze" icon={null}>
-          Freeze
-        </CommandButton>
-        <CommandButton command="outliner.expandAll">Expand</CommandButton>
-        <CommandButton command="outliner.collapseAll">Collapse</CommandButton>
-      </Toolbar>
 
       <div className="tree-panel bevel-in">
         <div className="tree-header">
@@ -94,16 +80,22 @@ export function SceneTree() {
             onChange={setSearch}
             count={matchCount !== null ? `${matchCount} shown` : scene ? `${scene.graph.nodes.length} objects` : undefined}
           />
-          <RadioGroup
-            label="Sort objects"
-            orientation="horizontal"
-            value={sorting}
-            options={[
-              { value: 'None', label: 'Scene order' },
-              { value: 'Alpha', label: 'A–Z' },
-            ]}
-            onChange={setSorting}
-          />
+          <div className="tree-header-row">
+            <RadioGroup
+              label="Sort objects"
+              orientation="horizontal"
+              value={sorting}
+              options={[
+                { value: 'None', label: 'Scene order' },
+                { value: 'Alpha', label: 'A–Z' },
+              ]}
+              onChange={setSorting}
+            />
+            <Toolbar label="Outliner" className="tree-header-tools">
+              <CommandButton command="outliner.expandAll" iconOnly />
+              <CommandButton command="outliner.collapseAll" iconOnly />
+            </Toolbar>
+          </div>
         </div>
         <Tree<number, Row>
           label="Scene objects"
@@ -114,6 +106,14 @@ export function SceneTree() {
           onFocusChange={setFocusKey}
           onToggle={toggleExpanded}
           onExpandAll={expandSubtree}
+          onContextMenu={(index, at) => {
+            // Right-clicking outside the selection selects that row first, as file managers do.
+            if (!selected.has(index)) {
+              anchor.current = index;
+              selectNode(index, false);
+            }
+            context.openAt(objectMenu(useEditor.getState()), at.x, at.y);
+          }}
           onActivate={(index) => {
             if (!selected.has(index)) selectNode(index, false);
             zoomSelected();
@@ -150,6 +150,7 @@ export function SceneTree() {
             ) : null
           }
         />
+        {context.element}
       </div>
     </div>
   );

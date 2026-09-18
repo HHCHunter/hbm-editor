@@ -4,7 +4,7 @@ import { shortcutOf } from './keymap';
 import { commandLabel, contextFor, disabledReason, executeCommand, getCommand } from './registry';
 
 /** A menu is a list of command ids, separators ("-") and submenus. */
-type Layout = (string | { submenu: string; items: Layout })[];
+export type Layout = (string | { submenu: string; items: Layout })[];
 
 export const MENU_LAYOUT: { id: string; label: string; items: Layout }[] = [
   { id: 'file', label: 'File', items: ['file.openScene', 'file.chooseGame', '-', 'file.settings'] },
@@ -19,10 +19,14 @@ export const MENU_LAYOUT: { id: string; label: string; items: Layout }[] = [
       'edit.unhideAll',
       'edit.freeze',
       'edit.unfreezeAll',
+      'edit.isolate',
       '-',
       'selection.all',
       'selection.none',
       'selection.invert',
+      'selection.children',
+      'selection.parent',
+      'selection.sameClass',
       '-',
       'selection.pickObjects',
       'selection.pickGroups',
@@ -32,8 +36,10 @@ export const MENU_LAYOUT: { id: string; label: string; items: Layout }[] = [
     id: 'view',
     label: 'View',
     items: [
-      'view.wireframe',
-      'view.lighting',
+      'view.modeLit',
+      'view.modeUnlit',
+      'view.modeWireframe',
+      '-',
       'view.textures',
       'view.fog',
       '-',
@@ -56,6 +62,11 @@ export const MENU_LAYOUT: { id: string; label: string; items: Layout }[] = [
   { id: 'window', label: 'Window', items: ['window.scene', 'window.textures', 'window.materials', 'window.localisation', 'window.scripts', 'window.animations'] },
   { id: 'help', label: 'Help', items: ['help.commandPalette', 'help.findObject', 'help.keyboardShortcuts', '-', 'help.about'] },
 ];
+
+/** Menu entries for a layout of command ids, with labels, keys and states as they are now. */
+export function menuEntries(layout: Layout, state: EditorStore, overrides: Record<string, string[]>, path = 'menu'): MenuEntry[] {
+  return entries(layout, state, overrides, path);
+}
 
 function entries(layout: Layout, state: EditorStore, overrides: Record<string, string[]>, path: string): MenuEntry[] {
   const ctx = contextFor(state);

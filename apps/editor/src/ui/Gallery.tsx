@@ -367,13 +367,17 @@ export function Gallery() {
                   return new Set([key]);
                 })
               }
-              onContextMenu={(key, e) =>
-                context.open([
+              onContextMenu={(key, at) =>
+                context.openAt(
+                  [
                   { id: 'frame', label: 'Frame', shortcut: 'F', onSelect: () => toast({ kind: 'info', title: `Framed ${key}` }) },
                   { id: 'hide', label: 'Hide', shortcut: 'H', onSelect: () => {} },
                   { kind: 'separator', id: 's' },
                   { id: 'copy', label: 'Copy Path', onSelect: () => {} },
-                ])(e)
+                  ],
+                  at.x,
+                  at.y,
+                )
               }
               renderItem={(item) => {
                 const Icon = KIND_ICON[item.kind];

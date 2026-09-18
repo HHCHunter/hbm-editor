@@ -4,25 +4,8 @@ import { connect } from '../api/client';
 import { getConfig, getGraph, getSurfaces, getTransforms } from '../api/endpoints';
 import { childIndex, meshNodeIndices, positionBounds } from '../scene/sceneModel';
 import { frame } from '../viewport/camera';
+import { useRecentScenes } from './recentScenes';
 import { DEFAULT_CAMERA, useEditor, type LoadedScene } from './store';
-
-const LAST_SCENE_KEY = 'hbm-editor:last-scene';
-
-function rememberScene(id: string): void {
-  try {
-    localStorage.setItem(LAST_SCENE_KEY, id);
-  } catch {
-    // Storage can be unavailable; remembering is only a convenience.
-  }
-}
-
-function lastScene(): string | null {
-  try {
-    return localStorage.getItem(LAST_SCENE_KEY);
-  } catch {
-    return null;
-  }
-}
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -66,7 +49,7 @@ export async function openScene(id: string): Promise<void> {
       s.cam = bounds ? frame(DEFAULT_CAMERA, bounds) : { ...DEFAULT_CAMERA };
       s.statusMsg = `Opened ${id}: ${graph.nodes.length} objects, ${graph.roots.length} models`;
     });
-    rememberScene(id);
+    useRecentScenes.getState().remember(id);
     const url = new URL(window.location.href);
     url.searchParams.set('scene', id);
     window.history.replaceState(null, '', url);
@@ -96,7 +79,7 @@ export async function startUp(): Promise<void> {
     });
     if (!config.gameRoot) return;
 
-    const wanted = new URLSearchParams(window.location.search).get('scene') ?? lastScene();
+    const wanted = new URLSearchParams(window.location.search).get('scene') ?? useRecentScenes.getState().ids[0] ?? null;
     if (wanted) await openScene(wanted);
     if (!useEditor.getState().scene) update((s) => void (s.dialog = 'sceneOpen'));
   } catch (err) {

@@ -33,7 +33,8 @@ export interface TreeProps<K extends string | number, T extends TreeItem<K>> {
   onActivate?: (key: K) => void;
   /** `*` on a row: open everything below it. */
   onExpandAll?: (key: K) => void;
-  onContextMenu?: (key: K, e: React.MouseEvent) => void;
+  /** Right-click, the Menu key or Shift+F10 on a row, with where to open the menu. */
+  onContextMenu?: (key: K, at: { x: number; y: number }) => void;
   /** Row content after the twisty; defaults to the label. */
   renderItem?: (item: T) => ReactNode;
   itemClassName?: (item: T) => string;
@@ -143,6 +144,13 @@ export function Tree<K extends string | number, T extends TreeItem<K>>({
       case '*':
         onExpandAll?.(item.key);
         break;
+      case 'ContextMenu':
+      case 'F10': {
+        if (e.key === 'F10' && !e.shiftKey) return;
+        const row = document.getElementById(rowId(item.key))?.getBoundingClientRect();
+        if (row) onContextMenu?.(item.key, { x: row.left + 24, y: row.bottom });
+        break;
+      }
       default: {
         if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey) return;
         const match = typeahead(e.key, at);
@@ -200,7 +208,15 @@ export function Tree<K extends string | number, T extends TreeItem<K>>({
                 onSelect(item.key, { toggle: (e.ctrlKey || e.metaKey) && multiselectable, range: e.shiftKey && multiselectable });
               }}
               onDoubleClick={() => onActivate?.(item.key)}
-              onContextMenu={onContextMenu ? (e) => onContextMenu(item.key, e) : undefined}
+              onContextMenu={
+                onContextMenu
+                  ? (e) => {
+                      e.preventDefault();
+                      onFocusChange(item.key);
+                      onContextMenu(item.key, { x: e.clientX, y: e.clientY });
+                    }
+                  : undefined
+              }
             >
               <span
                 className={`ui-tree-twisty${item.hasChildren ? '' : ' is-leaf'}`}

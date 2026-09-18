@@ -2,13 +2,13 @@ import { useEffect } from 'react';
 import { useCommandShortcuts } from './commands';
 import { CommandPalette } from './commands/CommandPalette';
 import { KeybindingsDialog } from './commands/KeybindingsDialog';
+import { MainToolbar } from './components/chrome/MainToolbar';
 import { MenuBar } from './components/chrome/MenuBar';
 import { StatusBar } from './components/chrome/StatusBar';
 import { TAB_PREFIX, TabStrip } from './components/chrome/TabStrip';
 import { SceneTree } from './components/outliner/SceneTree';
 import { HeaderFields } from './components/properties/HeaderFields';
 import { PropertyGrid } from './components/properties/PropertyGrid';
-import { ToolRail } from './components/rail/ToolRail';
 import { Viewport } from './components/viewport/Viewport';
 import { AnimationBrowser } from './panels/AnimationBrowser';
 import { GamePickerDialog } from './panels/GamePickerDialog';
@@ -41,8 +41,8 @@ export function App() {
   return (
     <div className="app">
       <MenuBar />
+      <MainToolbar />
       <div className="workspace">
-        <ToolRail />
         <main className="centre" aria-label="Workspace">
           <TabStrip />
           {/* The viewport stays mounted so switching tabs keeps its models. */}

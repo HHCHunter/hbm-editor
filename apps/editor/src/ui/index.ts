@@ -14,3 +14,4 @@ export { SearchField, TextField, VectorField } from './TextField';
 export { Toolbar, ToolbarGroupLabel, ToolbarSeparator } from './Toolbar';
 export { HoverCard, Tooltip } from './Tooltip';
 export { Tree, type SelectModifiers, type TreeItem } from './Tree';
+export { MenuButton, Segmented, SplitButton, type SegmentOption } from './MenuButton';

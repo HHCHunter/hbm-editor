@@ -1,0 +1,112 @@
+/* The main toolbar under the menu bar, and the outliner's header tools. */
+
+.main-toolbar {
+  container-type: inline-size;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: calc(var(--bar) + var(--sp-2));
+  flex: none;
+  padding: 0 var(--sp-2);
+  background: var(--face);
+  box-shadow: inset 0 -1px 0 var(--rule), inset 0 1px 0 var(--hilite);
+}
+
+.main-toolbar-side {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex: none;
+}
+
+/* The search sits in the middle and takes what space is left. */
+.main-search {
+  flex: 1 1 18rem;
+  min-width: 2rem;
+  max-width: 34rem;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: var(--control);
+  padding: 0 var(--sp-3);
+  border: none;
+  background: var(--c-field);
+  box-shadow: var(--bevel-in);
+  color: var(--c-text-muted);
+  text-align: left;
+  cursor: text;
+}
+
+.main-search:hover {
+  color: var(--c-text);
+}
+
+.main-search:focus-visible {
+  box-shadow: var(--bevel-in), var(--focus-ring);
+}
+
+.main-search-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main-search .ui-kbd {
+  margin-left: 0;
+}
+
+.main-toolbar-more {
+  display: none;
+}
+
+/* Narrower: icons only. Labels stay for screen readers and in tooltips. */
+@container (max-width: 78rem) {
+  .main-toolbar .ui-btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .main-toolbar .ui-btn--tool:not(.ui-split-arrow) {
+    min-width: var(--tool);
+    padding: 0 var(--sp-2);
+  }
+
+  .main-search .ui-kbd {
+    display: none;
+  }
+}
+
+/* Narrower still: the view group moves into More. */
+@container (max-width: 46rem) {
+  .main-toolbar-view {
+    display: none;
+  }
+
+  .main-toolbar-more {
+    display: flex;
+  }
+}
+
+/* ------------------------------------------------------------ outliner header */
+
+.tree-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.tree-header-row .ui-radio {
+  min-height: auto;
+}
+
+.tree-header-tools {
+  gap: 0;
+}
