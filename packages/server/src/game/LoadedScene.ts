@@ -3,6 +3,7 @@ import type { FileSource } from '@hbm/formats/node';
 import {
   buildSceneGraph,
   describeSurface,
+  drawsVariant,
   meshParts,
   partHiddenReason,
   type MeshPart,
@@ -22,6 +23,7 @@ export class LoadedScene {
   private readonly graphOnce = new Once<SceneGraph>();
   private readonly surfacesOnce = new Once<Map<number, Surface>>();
   private readonly rootsOnce = new Once<MeshRootDTO[]>();
+  private readonly materialUsersOnce = new Once<Map<number, number[]>>();
   private readonly partsByRoot = new Map<number, MeshPart[]>();
 
   constructor(id: string, archive: SceneArchive, source: FileSource, registry: ClassRegistry | null) {
@@ -93,6 +95,27 @@ export class LoadedScene {
         });
       }
       return out;
+    });
+  }
+
+  /** Node indices by material slot: the placed objects whose drawn parts use each material. */
+  materialUsers(): Promise<Map<number, number[]>> {
+    return this.materialUsersOnce.get(async () => {
+      const graph = await this.graph();
+      const users = new Map<number, number[]>();
+      for (const node of graph.nodes) {
+        if (!node.meshRoot) continue;
+        const slots = new Set<number>();
+        for (const part of await this.parts(node.meshRoot)) {
+          if (drawsVariant(node.variantId, part.variantId)) slots.add(part.materialSlot);
+        }
+        for (const slot of slots) {
+          const list = users.get(slot) ?? [];
+          list.push(node.index);
+          users.set(slot, list);
+        }
+      }
+      return users;
     });
   }
 

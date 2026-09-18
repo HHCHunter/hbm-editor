@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MatFile, colorProperty, renderState, textureStages } from '../src';
+import { MatFile, classInfo, colorProperty, materialProperties, readTree, renderState, textureStages } from '../src';
 import { makeMat, type MatSpec } from './fixtures/assetBuilders';
 
 const property = (tag: string, name: string, enabled: boolean, extra: MatSpec[] = []): MatSpec => ({
@@ -8,7 +8,35 @@ const property = (tag: string, name: string, enabled: boolean, extra: MatSpec[] 
 });
 
 const file = makeMat(
-  [{ name: 'Standard', root: { tag: 'CLAS', children: [{ tag: 'NAME', text: 'Standard' }] } }],
+  [
+    {
+      name: 'Standard',
+      root: {
+        tag: 'CLAS',
+        children: [
+          { tag: 'NAME', text: 'Standard' },
+          {
+            tag: 'SUBC',
+            children: [
+              { tag: 'NAME', text: 'Weighted' },
+              { tag: 'OTYP', text: 'Mesh' },
+              { tag: 'STYP', text: 'Array' },
+              {
+                tag: 'LAYE',
+                children: [
+                  { tag: 'NAME', text: 'Ambient' },
+                  { tag: 'TYPE', text: 'FX' },
+                  { tag: 'PATH', text: 'Glow' },
+                  { tag: 'IDEN', text: 'AmbientMPS' },
+                  { tag: 'VALI', text: '' },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
   [
     {
       className: 'Standard',
@@ -102,5 +130,43 @@ describe('MatFile', () => {
   it('reads an enabled colour property by name', () => {
     expect(colorProperty(mat, mat.bySlot.get(1)!, 'v4DiffuseColor')).toEqual([0.5, 0.25, 1, 1]);
     expect(colorProperty(mat, mat.bySlot.get(2)!, 'v4DiffuseColor')).toBeNull();
+  });
+
+  it('lists every property with its enable flag and other fields', () => {
+    const props = materialProperties(mat, mat.bySlot.get(1)!);
+    expect(props.map((p) => [p.kind, p.name, p.enabled])).toEqual([
+      ['TEXT', 'mapDiffuse', true],
+      ['TEXT', 'mapNormal', false],
+      ['TEXT', 'mapEnvironment', true],
+      ['COLO', 'v4DiffuseColor', true],
+      ['RSTA', 'RenderState', true],
+    ]);
+    expect(props[0]!.fields).toEqual({ TXID: [548], TILU: 'TILED' });
+    expect(props[3]!.fields).toEqual({ VALU: [0.5, 0.25, 1, 1] });
+    expect(props[4]!.fields).toMatchObject({ ATST: [1], CULL: 'TwoSided' });
+  });
+
+  it('describes the class and the shader passes each subclass draws with', () => {
+    expect(classInfo(mat, mat.bySlot.get(1)!.classSlot)).toEqual({
+      slot: 1,
+      name: 'Standard',
+      subclasses: [
+        {
+          name: 'Weighted',
+          objectType: 'Mesh',
+          storage: 'Array',
+          layers: [{ name: 'Ambient', type: 'FX', path: 'Glow', technique: 'AmbientMPS', validation: '' }],
+        },
+      ],
+    });
+    expect(classInfo(mat, 99)).toBeNull();
+  });
+
+  it('reads the whole node tree, and stops at the node limit', () => {
+    const tree = readTree(mat, mat.bySlot.get(2)!.root);
+    expect(tree).toMatchObject({ tag: 'INST', type: 'list', children: [{ tag: 'NAME', value: 'Characters/_Nude/Eyes_outer' }, { tag: 'BIND' }] });
+    const cut = readTree(mat, mat.bySlot.get(1)!.root, 3);
+    const count = (n: { children?: unknown[] }): number => 1 + ((n.children as { children?: unknown[] }[] | undefined) ?? []).reduce((a, c) => a + count(c), 0);
+    expect(count(cut)).toBe(3);
   });
 });

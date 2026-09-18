@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TOKEN_HEADER, type BrowseDTO, type ConfigDTO, type LocEntryDTO, type LocLookupDTO, type NodeDetailDTO, type SceneGraphDTO, type SurfaceDTO, type TextureDTO } from '@hbm/protocol';
+import { TOKEN_HEADER, type BrowseDTO, type ConfigDTO, type LocEntryDTO, type MaterialDetailDTO, type MaterialSummaryDTO, type LocLookupDTO, type NodeDetailDTO, type SceneGraphDTO, type SurfaceDTO, type TextureDTO } from '@hbm/protocol';
 import { decodeMeshPack } from '@hbm/scene';
 import { buildApp } from '../src/app';
 import { ConfigStore } from '../src/config/configStore';
@@ -160,6 +160,23 @@ describe('textures', () => {
     const raw = await get(scene('texture', '&id=128&as=raw'));
     expect(raw.rawPayload.length).toBe(16);
     expect((await get(scene('texture', '&id=999'))).statusCode).toBe(404);
+  });
+});
+
+describe('materials', () => {
+  it('lists materials with the objects that use them', async () => {
+    expect(await json<MaterialSummaryDTO[]>(scene('materials'))).toEqual([
+      { slot: 1, name: 'Furniture/Table', className: 'Standard', refCount: expect.any(Number), users: 1, diffuseTextureId: 128, features: [], hiddenReason: null },
+    ]);
+  });
+
+  it('describes one material in full', async () => {
+    const detail = await json<MaterialDetailDTO>(scene('material', '&slot=1'));
+    expect(detail).toMatchObject({ slot: 1, name: 'Furniture/Table', className: 'Standard', users: [0] });
+    expect(detail.properties).toEqual([{ kind: 'TEXT', name: 'mapDiffuse', enabled: true, fields: { TXID: [128] } }]);
+    expect(detail.class?.name).toBe('Standard');
+    expect(detail.raw).toMatchObject({ tag: 'INST', type: 'list' });
+    expect((await get(scene('material', '&slot=9'))).statusCode).toBe(404);
   });
 });
 

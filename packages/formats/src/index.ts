@@ -142,3 +142,15 @@ export {
   type MatRenderState,
   type MatTextureStage,
 } from './mat/materialProps';
+export {
+  classInfo,
+  materialProperties,
+  nodeValue,
+  readTree,
+  type MatClassInfo,
+  type MatProperty,
+  type MatShaderLayer,
+  type MatSubclass,
+  type MatTreeNode,
+  type MatValue,
+} from './mat/materialTree';

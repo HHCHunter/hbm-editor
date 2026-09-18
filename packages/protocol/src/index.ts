@@ -218,6 +218,80 @@ export interface SurfaceDTO {
   hiddenReason: HiddenReasonDTO | null;
 }
 
+// ---------------------------------------------------------------- materials
+
+/** A .MAT value: text, numbers (ints or floats), or null for a list. */
+export type MatValueDTO = string | number[] | null;
+
+export interface MaterialSummaryDTO {
+  slot: number;
+  name: string | null;
+  className: string;
+  refCount: number;
+  /** How many placed objects draw with it. */
+  users: number;
+  diffuseTextureId: number | null;
+  /** Features switched on, from the material's "…Enabled" switches, e.g. "Bump", "Specular". */
+  features: string[];
+  hiddenReason: HiddenReasonDTO | null;
+}
+
+/** One named parameter the material hands its shader (a BIND property). */
+export interface MaterialPropertyDTO {
+  /** The property's tag: TEXT, COLO, FLTV, BOOL, SCRL, RSTA, SPRI… */
+  kind: string;
+  name: string;
+  /** Disabled properties are skipped by the engine. */
+  enabled: boolean;
+  /** Every other child by tag: VALU, TXID, TILU, BENA… */
+  fields: Record<string, MatValueDTO>;
+}
+
+export interface MaterialLayerDTO {
+  name: string;
+  type: string;
+  /** Effect file or family, e.g. "Sprite.fx" or "Glow". */
+  path: string;
+  technique: string;
+  validation: string;
+}
+
+export interface MaterialSubclassDTO {
+  name: string;
+  objectType: string;
+  storage: string;
+  layers: MaterialLayerDTO[];
+}
+
+export interface MaterialClassDTO {
+  slot: number;
+  name: string;
+  subclasses: MaterialSubclassDTO[];
+}
+
+export interface MatTreeDTO {
+  tag: string;
+  type: 'float' | 'string' | 'int' | 'list' | 'unknown';
+  value: MatValueDTO;
+  children?: MatTreeDTO[];
+}
+
+export interface MaterialDetailDTO {
+  slot: number;
+  name: string | null;
+  className: string;
+  refCount: number;
+  properties: MaterialPropertyDTO[];
+  /** The template: its subclasses and the shader passes they draw with. */
+  class: MaterialClassDTO | null;
+  /** Node indices of the placed objects that draw with it. */
+  users: number[];
+  surface: SurfaceDTO;
+  /** The material's node tree as stored. */
+  raw: MatTreeDTO;
+  classRaw: MatTreeDTO | null;
+}
+
 // ---------------------------------------------------------------- animations
 
 export interface AnimationClipDTO {
