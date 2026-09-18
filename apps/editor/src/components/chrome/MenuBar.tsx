@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { useKeymap } from '../../commands';
+import { buildMenus } from '../../commands/menus';
 import { useEditor } from '../../state/store';
 import { MenuBar as UiMenuBar } from '../../ui';
-import { buildMenus } from './menus';
 
 export function MenuBar() {
   const shown = useEditor(
@@ -10,16 +11,21 @@ export function MenuBar() {
       scene: s.scene,
       sel: s.sel,
       view: s.view,
+      filters: s.filters,
+      selMode: s.selMode,
       tab: s.tab,
+      hidden: s.hidden,
+      frozen: s.frozen,
       undoStack: s.undoStack,
       redoStack: s.redoStack,
       loadingScene: s.loadingScene,
       gameRoot: s.config?.gameRoot ?? null,
     })),
   );
+  const overrides = useKeymap((s) => s.overrides);
   // Rebuilt whenever something a menu shows changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const menus = useMemo(() => buildMenus(useEditor.getState()), [shown]);
+  const menus = useMemo(() => buildMenus(useEditor.getState(), overrides), [shown, overrides]);
   const sceneId = shown.scene?.id ?? shown.loadingScene;
 
   return (

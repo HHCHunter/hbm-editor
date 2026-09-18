@@ -60,14 +60,24 @@ test('the editor with a scene open has no serious accessibility problems', async
   }
 });
 
-test('the game picker and settings dialogs have no serious accessibility problems', async ({ page }) => {
+test('the game picker, settings, palette and shortcut dialogs have no serious accessibility problems', async ({ page }) => {
   await openScene(page);
   await page.keyboard.press('Control+,');
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
   expect(await violations(page, '[role=dialog]')).toEqual([]);
   await page.keyboard.press('Escape');
 
-  await page.getByRole('button', { name: 'Game…' }).click();
+  await page.keyboard.press('F1');
+  await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+  expect(await violations(page, '[role=dialog]')).toEqual([]);
+  await page.keyboard.press('Escape');
+
+  await page.keyboard.press('Shift+/');
+  await expect(page.getByRole('dialog', { name: 'Keyboard Shortcuts' })).toBeVisible();
+  expect(await violations(page, '[role=dialog]')).toEqual([]);
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: /Game/ }).first().click();
   await expect(page.getByRole('dialog', { name: 'Choose Hitman: Blood Money' })).toBeVisible();
   await page.waitForLoadState('networkidle');
   expect(await violations(page, '[role=dialog]')).toEqual([]);

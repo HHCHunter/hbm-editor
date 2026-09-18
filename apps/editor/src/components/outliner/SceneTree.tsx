@@ -2,21 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Camera, Folder, FolderTree, Lightbulb, Lock, EyeOff, Shapes, type LucideIcon } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import type { SceneNodeDTO } from '@hbm/protocol';
-import {
-  clearSelection,
-  expandSubtree,
-  invertSelection,
-  selectAll,
-  selectNode,
-  selectRange,
-  setAllExpanded,
-  toggleExpanded,
-  toggleFreezeSelection,
-  toggleHideSelection,
-  zoomSelected,
-} from '../../state/actions';
+import { CommandButton } from '../../commands/CommandButton';
+import { expandSubtree, selectNode, selectRange, toggleExpanded, zoomSelected } from '../../state/actions';
 import { useEditor } from '../../state/store';
-import { Button, PanelState, RadioGroup, SearchField, Toolbar, Tree, type TreeItem } from '../../ui';
+import { PanelState, RadioGroup, SearchField, Toolbar, Tree, type TreeItem } from '../../ui';
 import { buildTreeRows, type TreeRow } from './treeRows';
 
 const KIND_ICONS: Record<SceneNodeDTO['kind'], LucideIcon> = {
@@ -80,30 +69,20 @@ export function SceneTree() {
   return (
     <div className="tree-area">
       <Toolbar label="Outliner" orientation="vertical" className="tree-side">
-        <Button variant="tool" disabled={!scene} onClick={selectAll}>
-          All
-        </Button>
-        <Button variant="tool" disabled={!sel.length} onClick={() => clearSelection()}>
-          None
-        </Button>
-        <Button variant="tool" disabled={!scene} onClick={invertSelection}>
-          Invert
-        </Button>
-        <Button variant="tool" disabled={!sel.length} onClick={zoomSelected}>
+        <CommandButton command="selection.all">All</CommandButton>
+        <CommandButton command="selection.none">None</CommandButton>
+        <CommandButton command="selection.invert">Invert</CommandButton>
+        <CommandButton command="camera.frameSelected" icon={null}>
           Frame
-        </Button>
-        <Button variant="tool" disabled={!sel.length} onClick={toggleHideSelection}>
+        </CommandButton>
+        <CommandButton command="edit.hide" icon={null}>
           Hide
-        </Button>
-        <Button variant="tool" disabled={!sel.length} onClick={toggleFreezeSelection}>
+        </CommandButton>
+        <CommandButton command="edit.freeze" icon={null}>
           Freeze
-        </Button>
-        <Button variant="tool" disabled={!scene} onClick={() => setAllExpanded(true)}>
-          Expand
-        </Button>
-        <Button variant="tool" disabled={!scene} onClick={() => setAllExpanded(false)}>
-          Collapse
-        </Button>
+        </CommandButton>
+        <CommandButton command="outliner.expandAll">Expand</CommandButton>
+        <CommandButton command="outliner.collapseAll">Collapse</CommandButton>
       </Toolbar>
 
       <div className="tree-panel bevel-in">

@@ -15,7 +15,7 @@ export function SettingsDialog() {
         <>
           <Button onClick={reset}>Reset to Defaults</Button>
           <Button primary onClick={close}>
-            Close
+            Done
           </Button>
         </>
       }

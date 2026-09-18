@@ -1,7 +1,7 @@
 import type { HiddenReasonDTO } from '@hbm/protocol';
 import { meshNodeIndices, positionBounds } from '../scene/sceneModel';
 import { frame } from '../viewport/camera';
-import { DEFAULT_CAMERA, VIEW_FLAG_TITLES, useEditor, type CameraState, type DialogName, type Tab, type ViewFlag } from './store';
+import { DEFAULT_CAMERA, VIEW_FLAG_TITLES, useEditor, type CameraState, type DialogName, type SelMode, type Tab, type ViewFlag } from './store';
 
 const store = () => useEditor.getState();
 
@@ -70,7 +70,6 @@ export function invertSelection(): void {
   });
 }
 
-/** Select the row after the current selection, in outliner order. */
 /** Select every row from `anchor` to `index`, in outliner order. */
 export function selectRange(orderedIndices: readonly number[], anchor: number, index: number): void {
   const a = orderedIndices.indexOf(anchor);
@@ -245,3 +244,28 @@ function toggleNodeFlag(key: 'hidden' | 'frozen', verb: string): void {
 
 export const toggleHideSelection = () => toggleNodeFlag('hidden', 'Hide');
 export const toggleFreezeSelection = () => toggleNodeFlag('frozen', 'Freeze');
+
+/** Clear a flag from every object, as one undo step. */
+function clearNodeFlag(key: 'hidden' | 'frozen', verb: string): void {
+  const before = Object.keys(store()[key]).map(Number);
+  if (!before.length) return setStatus(`Nothing is ${key}`);
+  store().run({
+    label: `${verb} ${before.length} object(s)`,
+    apply: (s) => {
+      s[key] = {};
+    },
+    revert: (s) => {
+      for (const i of before) s[key][i] = true;
+    },
+  });
+}
+
+export const unhideAll = () => clearNodeFlag('hidden', 'Unhide');
+export const unfreezeAll = () => clearNodeFlag('frozen', 'Unfreeze');
+
+export function setSelMode(mode: SelMode): void {
+  store().update((s) => {
+    s.selMode = mode;
+    s.statusMsg = mode === 'Group' ? 'Viewport clicks select the enclosing group' : 'Viewport clicks select the object';
+  });
+}

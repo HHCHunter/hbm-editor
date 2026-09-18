@@ -1320,3 +1320,22 @@
   position: sticky;
   left: 0;
 }
+
+/* Disabled but still focusable and hoverable, so its tooltip can say why. */
+.ui-btn[aria-disabled='true'] {
+  color: var(--c-text-disabled);
+}
+
+.ui-btn[aria-disabled='true'] .ui-icon {
+  opacity: 0.55;
+}
+
+.ui-btn[aria-disabled='true']:active .ui-btn-label,
+.ui-btn[aria-disabled='true']:active .ui-icon {
+  transform: none;
+}
+
+.ui-btn[aria-disabled='true']:hover,
+.ui-btn[aria-disabled='true']:active {
+  background: var(--face);
+}

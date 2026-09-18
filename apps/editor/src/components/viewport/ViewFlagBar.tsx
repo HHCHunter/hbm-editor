@@ -1,72 +1,64 @@
-import { RotateCcw } from 'lucide-react';
-import type { HiddenReasonDTO } from '@hbm/protocol';
-import { DEFAULT_KEYMAP } from '../../commands/defaultKeymap';
-import { resetViewAngle, setLod, toggleShown, toggleViewFlag, VIEW_ANGLES, viewFrom } from '../../state/actions';
-import { VIEW_FLAGS, VIEW_FLAG_TITLES, useEditor, type ViewFlag } from '../../state/store';
-import { Button, IconButton, Select, ToggleButton, Toolbar, ToolbarSeparator, Tooltip } from '../../ui';
+import { CommandButton } from '../../commands/CommandButton';
+import { setLod } from '../../state/actions';
+import { useEditor } from '../../state/store';
+import { Select, Toolbar, ToolbarSeparator } from '../../ui';
 
-const FLAG_SHORTCUTS: Partial<Record<ViewFlag, string>> = {
-  W: DEFAULT_KEYMAP['view.wireframe'],
-  G: DEFAULT_KEYMAP['view.grid'],
-};
-
-const SHOWN: [reason: HiddenReasonDTO, label: string, title: string][] = [
-  ['collision', 'K', 'Collision geometry'],
-  ['bounds', 'Bd', 'Bounds and trigger volumes'],
-  ['shadow', 'Sh', 'Shadow geometry'],
-  ['helper', 'Hl', 'Helper geometry'],
-  ['placeholder', 'Ph', 'Placeholder geometry'],
+/** Short codes for the flags; the commands' titles and descriptions are in the tooltips. */
+const FLAGS: [command: string, code: string][] = [
+  ['view.wireframe', 'W'],
+  ['view.markers', 'P'],
+  ['view.lighting', 'Li'],
+  ['view.textures', 'Tx'],
+  ['view.fog', 'F'],
+  ['view.grid', 'G'],
+  ['view.skeletons', 'Bn'],
 ];
 
-const SIDES = Object.keys(VIEW_ANGLES) as (keyof typeof VIEW_ANGLES)[];
+const SHOWN: [command: string, code: string][] = [
+  ['view.show.collision', 'K'],
+  ['view.show.bounds', 'Bd'],
+  ['view.show.shadow', 'Sh'],
+  ['view.show.helper', 'Hl'],
+  ['view.show.placeholder', 'Ph'],
+];
+
+const SIDES: [command: string, code: string][] = [
+  ['camera.viewTop', 'T'],
+  ['camera.viewBottom', 'B'],
+  ['camera.viewLeft', 'L'],
+  ['camera.viewRight', 'R'],
+];
 
 export function ViewFlagBar() {
-  const view = useEditor((s) => s.view);
-  const filters = useEditor((s) => s.filters);
+  const lod = useEditor((s) => s.filters.lod);
 
   return (
     <Toolbar label="Viewport display" className="viewport-toolbar">
       <span className="viewport-label">Perspective</span>
-      {VIEW_FLAGS.map((flag) => (
-        <ToggleButton
-          key={flag}
-          className="viewflag"
-          label={VIEW_FLAG_TITLES[flag]}
-          shortcut={FLAG_SHORTCUTS[flag]}
-          pressed={view[flag]}
-          onPressedChange={() => toggleViewFlag(flag)}
-        >
-          {flag}
-        </ToggleButton>
+      {FLAGS.map(([command, code]) => (
+        <CommandButton key={command} command={command} className="viewflag" icon={null}>
+          {code}
+        </CommandButton>
       ))}
       <ToolbarSeparator />
-      {SHOWN.map(([reason, label, title]) => (
-        <ToggleButton
-          key={reason}
-          className="viewflag"
-          label={title}
-          description="Special geometry the game doesn't draw"
-          pressed={filters.show[reason]}
-          onPressedChange={() => toggleShown(reason)}
-        >
-          {label}
-        </ToggleButton>
+      {SHOWN.map(([command, code]) => (
+        <CommandButton key={command} command={command} className="viewflag" icon={null}>
+          {code}
+        </CommandButton>
       ))}
       <ToolbarSeparator />
-      {SIDES.map((side) => (
-        <Tooltip key={side} title={`Look from the ${side.toLowerCase()}`} describe={false}>
-          <Button variant="tool" className="viewflag" aria-label={`Look from the ${side.toLowerCase()}`} onClick={() => viewFrom(side)}>
-            {side[0]}
-          </Button>
-        </Tooltip>
+      {SIDES.map(([command, code]) => (
+        <CommandButton key={command} command={command} className="viewflag" icon={null}>
+          {code}
+        </CommandButton>
       ))}
-      <IconButton icon={RotateCcw} className="viewflag" label="Default view angle" onClick={resetViewAngle} />
+      <CommandButton command="camera.resetAngle" className="viewflag" iconOnly />
       <ToolbarSeparator />
       <Select
         label="Level of detail"
         hideLabel
         compact
-        value={filters.lod}
+        value={lod}
         options={[0, 1, 2, 3, 4, 5, 6, 7].map((level) => ({ value: level, label: `LOD ${level}` }))}
         onChange={setLod}
       />

@@ -2,7 +2,7 @@ import type { Draft } from 'immer';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { ConfigDTO, HiddenReasonDTO, MeshRootDTO, SceneGraphDTO, SurfaceDTO } from '@hbm/protocol';
-import type { Command } from '../commands/Command';
+import type { Edit } from '../commands/Edit';
 
 export const VIEW_FLAG_TITLES = {
   W: 'Wireframe',
@@ -48,7 +48,7 @@ export interface MeshProgress {
 }
 
 export type Tab = 'scene' | 'textures' | 'localisation' | 'scripts' | 'animations';
-export type DialogName = 'gamePicker' | 'sceneOpen' | 'settings';
+export type DialogName = 'gamePicker' | 'sceneOpen' | 'settings' | 'palette' | 'keybindings';
 export type SelMode = 'Geom' | 'Group';
 
 export interface ViewportFilters {
@@ -79,8 +79,8 @@ export interface EditorState {
   sorting: 'Alpha' | 'None';
   search: string;
   statusMsg: string;
-  undoStack: Command[];
-  redoStack: Command[];
+  undoStack: Edit[];
+  redoStack: Edit[];
 }
 
 export interface EditorStore extends EditorState {
@@ -88,7 +88,7 @@ export interface EditorStore extends EditorState {
   update: (recipe: (s: Draft<EditorState>) => void) => void;
   status: (msg: string) => void;
   /** Apply an edit and record it for undo. */
-  run: (cmd: Command) => void;
+  run: (edit: Edit) => void;
   undo: () => void;
   redo: () => void;
 }
@@ -132,33 +132,35 @@ export const useEditor = create<EditorStore>()(
         s.statusMsg = msg;
       }),
 
-    run: (cmd) =>
+    run: (edit) =>
       set((s) => {
-        cmd.apply(s);
-        s.undoStack.push(cmd);
+        edit.apply(s);
+        const merged = s.undoStack.at(-1)?.merge?.(edit) ?? null;
+        if (merged) s.undoStack[s.undoStack.length - 1] = merged;
+        else s.undoStack.push(edit);
         s.redoStack = [];
-        s.statusMsg = cmd.label;
+        s.statusMsg = edit.label;
       }),
 
     undo: () => {
-      const cmd = get().undoStack.at(-1);
-      if (!cmd) return get().status('Nothing to undo');
+      const edit = get().undoStack.at(-1);
+      if (!edit) return get().status('Nothing to undo');
       set((s) => {
-        cmd.revert(s);
+        edit.revert(s);
         s.undoStack.pop();
-        s.redoStack.push(cmd);
-        s.statusMsg = `Undo: ${cmd.label}`;
+        s.redoStack.push(edit);
+        s.statusMsg = `Undo: ${edit.label}`;
       });
     },
 
     redo: () => {
-      const cmd = get().redoStack.at(-1);
-      if (!cmd) return get().status('Nothing to redo');
+      const edit = get().redoStack.at(-1);
+      if (!edit) return get().status('Nothing to redo');
       set((s) => {
-        cmd.apply(s);
+        edit.apply(s);
         s.redoStack.pop();
-        s.undoStack.push(cmd);
-        s.statusMsg = `Redo: ${cmd.label}`;
+        s.undoStack.push(edit);
+        s.statusMsg = `Redo: ${edit.label}`;
       });
     },
   })),

@@ -1,4 +1,7 @@
 import { useEffect } from 'react';
+import { useCommandShortcuts } from './commands';
+import { CommandPalette } from './commands/CommandPalette';
+import { KeybindingsDialog } from './commands/KeybindingsDialog';
 import { MenuBar } from './components/chrome/MenuBar';
 import { StatusBar } from './components/chrome/StatusBar';
 import { TAB_PREFIX, TabStrip } from './components/chrome/TabStrip';
@@ -7,7 +10,6 @@ import { HeaderFields } from './components/properties/HeaderFields';
 import { PropertyGrid } from './components/properties/PropertyGrid';
 import { ToolRail } from './components/rail/ToolRail';
 import { Viewport } from './components/viewport/Viewport';
-import { useShortcuts } from './hooks/useShortcuts';
 import { AnimationBrowser } from './panels/AnimationBrowser';
 import { GamePickerDialog } from './panels/GamePickerDialog';
 import { LocalisationBrowser } from './panels/LocalisationBrowser';
@@ -22,7 +24,7 @@ import { TabPanel, ToastRegion } from './ui';
 const APP_TITLE = 'Hitman: Blood Money Editor';
 
 export function App() {
-  useShortcuts();
+  useCommandShortcuts();
   const tab = useEditor((s) => s.tab);
   const dialog = useEditor((s) => s.dialog);
   const sceneId = useEditor((s) => s.scene?.id ?? s.loadingScene);
@@ -67,6 +69,8 @@ export function App() {
       {dialog === 'gamePicker' && <GamePickerDialog />}
       {dialog === 'sceneOpen' && <SceneOpenDialog />}
       {dialog === 'settings' && <SettingsDialog />}
+      {dialog === 'keybindings' && <KeybindingsDialog />}
+      {dialog === 'palette' && <CommandPalette />}
       <ToastRegion />
     </div>
   );
