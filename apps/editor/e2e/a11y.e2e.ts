@@ -77,7 +77,8 @@ test('the game picker, settings, palette and shortcut dialogs have no serious ac
   expect(await violations(page, '[role=dialog]')).toEqual([]);
   await page.keyboard.press('Escape');
 
-  await page.getByRole('button', { name: /Game/ }).first().click();
+  await page.getByRole('menuitem', { name: 'File' }).click();
+  await page.getByRole('menuitem', { name: 'Choose Game…' }).click();
   await expect(page.getByRole('dialog', { name: 'Choose Hitman: Blood Money' })).toBeVisible();
   await page.waitForLoadState('networkidle');
   expect(await violations(page, '[role=dialog]')).toEqual([]);

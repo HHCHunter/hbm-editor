@@ -8,10 +8,6 @@ export function ToolRail() {
   return (
     <div className="rail">
       <Toolbar label="Scene tools" orientation="vertical">
-        <ToolbarGroupLabel>Scene</ToolbarGroupLabel>
-        <CommandButton command="file.openScene">Open…</CommandButton>
-        <CommandButton command="file.chooseGame">Game…</CommandButton>
-
         <ToolbarGroupLabel>Frame</ToolbarGroupLabel>
         <CommandButton command="camera.frameAll">All</CommandButton>
         <CommandButton command="camera.frameSelected">Selected</CommandButton>

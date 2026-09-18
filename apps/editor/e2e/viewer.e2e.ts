@@ -13,7 +13,8 @@ test('choose the game, open a scene, pick the model and browse its data', async 
   await expect(picker.or(openDialog).or(page.getByRole('treeitem').first())).toBeVisible();
   if (!(await picker.isVisible())) {
     if (await openDialog.isVisible()) await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Game…' }).click();
+    await page.getByRole('menuitem', { name: 'File' }).click();
+    await page.getByRole('menuitem', { name: 'Choose Game…' }).click();
   }
   await expect(picker).toBeVisible();
   await picker.getByRole('textbox', { name: 'Game folder' }).fill(GAME);
