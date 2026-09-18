@@ -293,6 +293,7 @@ export const COMMANDS: EditorCommand[] = [
   // ---------------------------------------------------------------- window
   windowTab('scene', 'Scene'),
   windowTab('textures', 'Textures'),
+  windowTab('materials', 'Materials'),
   windowTab('localisation', 'Localisation'),
   windowTab('scripts', 'Scripts'),
   windowTab('animations', 'Animations'),

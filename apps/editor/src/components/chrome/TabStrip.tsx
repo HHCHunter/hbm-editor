@@ -8,6 +8,7 @@ export const TAB_PREFIX = 'workspace';
 const TABS: [Tab, string][] = [
   ['scene', 'Scene'],
   ['textures', 'Textures'],
+  ['materials', 'Materials'],
   ['localisation', 'Localisation'],
   ['scripts', 'Scripts'],
   ['animations', 'Animations'],

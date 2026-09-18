@@ -27,6 +27,22 @@ export function setTab(tab: Tab): void {
   });
 }
 
+/** Show a texture in the Textures tab. */
+export function showTexture(id: number): void {
+  store().update((s) => {
+    s.textureId = id;
+    s.tab = 'textures';
+  });
+}
+
+/** Show a material in the Materials tab. */
+export function showMaterial(slot: number): void {
+  store().update((s) => {
+    s.materialSlot = slot;
+    s.tab = 'materials';
+  });
+}
+
 // ---------------------------------------------------------------- selection
 
 /** Open every ancestor of a node so its outliner row exists. */

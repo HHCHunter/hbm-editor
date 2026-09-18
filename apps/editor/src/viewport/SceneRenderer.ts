@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import type { SurfaceDTO, TextureDTO } from '@hbm/protocol';
 import { drawsVariant, partHiddenReason } from '@hbm/scene';
-import { listTextures, textureRgbaUrl } from '../api/endpoints';
+import { listTextures } from '../api/endpoints';
 import { effectiveFlags, meshNodeIndices, positionBounds, TRANSFORM } from '../scene/sceneModel';
 import type { CameraState, EditorState, LoadedScene } from '../state/store';
 import { VERTICAL_FOV_DEG, cameraBasis, orbit, pan, zoom } from './camera';
 import { loadSceneMeshes, meshPartsOf, type MeshLoad, type MeshPartData } from './meshStore';
+import { fetchGameTexture, levelFor, partGeometry } from './gameTextures';
 import { keepSkeletonsFor, skeletonFor } from './skeletonStore';
 
 export interface RendererCallbacks {
@@ -183,15 +184,7 @@ export class SceneRenderer {
       // Each placement draws only the character it asks for (0 draws the whole model).
       const drawn = nodes.filter((n) => drawsVariant(scene.graph.nodes[n]!.variantId, part.variantId));
       if (!part.indices.length || !drawn.length) continue;
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(part.positions, 3));
-      if (part.uvs) geometry.setAttribute('uv', new THREE.BufferAttribute(part.uvs, 2));
-      geometry.setAttribute('color', new THREE.BufferAttribute(part.colors, 4, true));
-      geometry.setIndex(new THREE.BufferAttribute(part.indices, 1));
-      if (part.normals) geometry.setAttribute('normal', new THREE.BufferAttribute(part.normals, 3));
-      else geometry.computeVertexNormals();
-      geometry.computeBoundingBox();
-      geometry.computeBoundingSphere();
+      const geometry = partGeometry(part);
 
       const mesh = new THREE.InstancedMesh(geometry, this.materialFor(part.materialSlot), drawn.length);
       const entry: PartMesh = { part, mesh, nodes: drawn };
@@ -357,26 +350,8 @@ export class SceneRenderer {
         });
       }
       const info = (await this.textureInfo).get(id);
-      if (!info) return null;
-      let level = info.levels.findIndex((l) => l.size > 0 && Math.max(l.width, l.height) <= MAX_TEXTURE_EDGE);
-      if (level < 0) level = info.levels.findIndex((l) => l.size > 0);
-      const size = info.levels[level];
-      if (!size) return null;
-
-      const res = await fetch(textureRgbaUrl(scene.id, id, level));
-      if (this.loaded !== scene) return null;
-      if (!res.ok) throw new Error(`texture ${id} failed (${res.status})`);
-      const texture = new THREE.DataTexture(new Uint8Array(await res.arrayBuffer()), size.width, size.height);
-      // The rows are stored top first, which is where Direct3D texture coordinates start.
-      texture.flipY = false;
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
-      texture.magFilter = THREE.LinearFilter;
-      texture.minFilter = THREE.LinearMipmapLinearFilter;
-      texture.generateMipmaps = true;
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = 4;
-      texture.needsUpdate = true;
+      if (!info || levelFor(info, MAX_TEXTURE_EDGE) < 0) return null;
+      const texture = await fetchGameTexture(scene.id, info, { maxEdge: MAX_TEXTURE_EDGE });
       if (this.loaded !== scene) {
         texture.dispose();
         return null;

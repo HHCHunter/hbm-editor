@@ -53,7 +53,7 @@ export const MENU_LAYOUT: { id: string; label: string; items: Layout }[] = [
       },
     ],
   },
-  { id: 'window', label: 'Window', items: ['window.scene', 'window.textures', 'window.localisation', 'window.scripts', 'window.animations'] },
+  { id: 'window', label: 'Window', items: ['window.scene', 'window.textures', 'window.materials', 'window.localisation', 'window.scripts', 'window.animations'] },
   { id: 'help', label: 'Help', items: ['help.commandPalette', 'help.findObject', 'help.keyboardShortcuts', '-', 'help.about'] },
 ];
 

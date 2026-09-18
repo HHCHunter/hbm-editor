@@ -52,12 +52,18 @@ test('the editor with a scene open has no serious accessibility problems', async
   await expect(page.getByRole('table', { name: 'Properties' })).toContainText('Furniture/Table');
   expect(await violations(page)).toEqual([]);
 
-  for (const tab of ['Textures', 'Localisation', 'Scripts', 'Animations']) {
+  for (const tab of ['Textures', 'Materials', 'Localisation', 'Scripts', 'Animations']) {
     await page.getByRole('tab', { name: tab }).click();
     await expect(page.getByRole('tabpanel', { name: tab })).toBeVisible();
     await expect(page.locator('.ui-panel-state--loading')).toHaveCount(0);
     expect(await violations(page, '[role=tabpanel]:not([hidden])'), tab).toEqual([]);
   }
+
+  // A material with its graph, preview and inspector.
+  await page.getByRole('tab', { name: 'Materials' }).click();
+  await page.getByRole('grid', { name: 'Materials' }).getByRole('row', { name: /Table/ }).click();
+  await expect(page.getByRole('group', { name: 'Material graph' })).toBeVisible();
+  expect(await violations(page, '[role=tabpanel]:not([hidden])'), 'material view').toEqual([]);
 });
 
 test('the game picker, settings, palette and shortcut dialogs have no serious accessibility problems', async ({ page }) => {

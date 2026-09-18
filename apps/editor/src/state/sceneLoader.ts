@@ -58,6 +58,8 @@ export async function openScene(id: string): Promise<void> {
       s.hidden = {};
       s.frozen = {};
       s.expanded = {};
+      s.materialSlot = null;
+      s.textureId = null;
       s.undoStack = [];
       s.redoStack = [];
       s.tab = 'scene';

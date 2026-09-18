@@ -47,7 +47,7 @@ export interface MeshProgress {
   failed: number;
 }
 
-export type Tab = 'scene' | 'textures' | 'localisation' | 'scripts' | 'animations';
+export type Tab = 'scene' | 'textures' | 'materials' | 'localisation' | 'scripts' | 'animations';
 export type DialogName = 'gamePicker' | 'sceneOpen' | 'settings' | 'palette' | 'keybindings';
 export type SelMode = 'Geom' | 'Group';
 
@@ -63,6 +63,10 @@ export interface EditorState {
   config: ConfigDTO | null;
   dialog: DialogName | null;
   tab: Tab;
+  /** The material shown in the Materials tab, by slot. */
+  materialSlot: number | null;
+  /** The texture shown in the Textures tab, by id. */
+  textureId: number | null;
   scene: LoadedScene | null;
   loadingScene: string | null;
   meshProgress: MeshProgress | null;
@@ -99,6 +103,8 @@ export function initialEditorState(): EditorState {
     config: null,
     dialog: null,
     tab: 'scene',
+    materialSlot: null,
+    textureId: null,
     scene: null,
     loadingScene: null,
     meshProgress: null,

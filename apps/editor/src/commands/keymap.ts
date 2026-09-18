@@ -27,9 +27,10 @@ export const DEFAULT_KEYMAP: Readonly<Record<string, readonly Chord[]>> = {
   'camera.frameAll': ['Shift+F'],
   'window.scene': ['Alt+1'],
   'window.textures': ['Alt+2'],
-  'window.localisation': ['Alt+3'],
-  'window.scripts': ['Alt+4'],
-  'window.animations': ['Alt+5'],
+  'window.materials': ['Alt+3'],
+  'window.localisation': ['Alt+4'],
+  'window.scripts': ['Alt+5'],
+  'window.animations': ['Alt+6'],
 };
 
 const KEY = 'hbm-editor:keymap';

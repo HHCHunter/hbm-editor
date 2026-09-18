@@ -4,7 +4,8 @@ import type { TextureDTO } from '@hbm/protocol';
 import { listTextures, textureUrl } from '../api/endpoints';
 import { useAsync } from '../hooks/useAsync';
 import { useEditor } from '../state/store';
-import { PanelState, SearchField, Select } from '../ui';
+import { showMaterial } from '../state/actions';
+import { Button, PanelState, SearchField, Select } from '../ui';
 
 const THUMB_EDGE = 128;
 
@@ -21,7 +22,7 @@ function TextureDetail({ sceneId, texture }: { sceneId: string; texture: Texture
   const surfaces = useEditor((s) => s.scene?.surfaces);
   const [level, setLevel] = useState(() => Math.max(0, texture.levels.findIndex((l) => l.size > 0)));
   const [failed, setFailed] = useState(false);
-  const users = texture.materials.map((slot) => `${slot}: ${surfaces?.[slot]?.name ?? 'unnamed material'}`);
+  const users = texture.materials.map((slot) => ({ slot, name: surfaces?.[slot]?.name ?? 'unnamed material' }));
 
   return (
     <section className="tex-detail bevel-in" aria-label={`Texture ${texture.name}`}>
@@ -73,8 +74,12 @@ function TextureDetail({ sceneId, texture }: { sceneId: string; texture: Texture
         />
         <h4 className="group-hdr">Materials using it ({users.length})</h4>
         <ul className="tex-users">
-          {users.map((name, i) => (
-            <li key={i}>{name}</li>
+          {users.map(({ slot, name }) => (
+            <li key={slot}>
+              <Button variant="link" onClick={() => showMaterial(slot)}>
+                {slot}: {name}
+              </Button>
+            </li>
           ))}
         </ul>
       </div>
@@ -86,7 +91,11 @@ export function TextureBrowser() {
   const sceneId = useEditor((s) => s.scene?.id ?? null);
   const textures = useAsync(sceneId ? () => listTextures(sceneId) : null, [sceneId]);
   const [filter, setFilter] = useState('');
-  const [chosen, setChosen] = useState<number | null>(null);
+  const chosen = useEditor((s) => s.textureId);
+  const setChosen = (id: number) =>
+    useEditor.getState().update((s) => {
+      s.textureId = id;
+    });
   const gridRef = useRef<HTMLDivElement>(null);
   const id = useId();
 

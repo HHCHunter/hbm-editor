@@ -13,6 +13,7 @@ import { Viewport } from './components/viewport/Viewport';
 import { AnimationBrowser } from './panels/AnimationBrowser';
 import { GamePickerDialog } from './panels/GamePickerDialog';
 import { LocalisationBrowser } from './panels/LocalisationBrowser';
+import { MaterialBrowser } from './panels/materials/MaterialBrowser';
 import { SceneOpenDialog } from './panels/SceneOpenDialog';
 import { ScriptBrowser } from './panels/ScriptBrowser';
 import { TextureBrowser } from './panels/TextureBrowser';
@@ -51,6 +52,7 @@ export function App() {
           {tab !== 'scene' && (
             <TabPanel idPrefix={TAB_PREFIX} id={tab} className="centre-page">
               {tab === 'textures' && <TextureBrowser />}
+              {tab === 'materials' && <MaterialBrowser />}
               {tab === 'localisation' && <LocalisationBrowser />}
               {tab === 'scripts' && <ScriptBrowser />}
               {tab === 'animations' && <AnimationBrowser />}

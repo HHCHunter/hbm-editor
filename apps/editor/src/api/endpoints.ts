@@ -3,6 +3,8 @@ import type {
   ConfigDTO,
   LocEntryDTO,
   LocLookupDTO,
+  MaterialDetailDTO,
+  MaterialSummaryDTO,
   NodeDetailDTO,
   SceneGraphDTO,
   SceneAnimationsDTO,
@@ -47,6 +49,10 @@ export const listTextures = (scene: string) => getJson<TextureDTO[]>(sceneUrl('t
 export const textureUrl = (scene: string, id: number, level?: number) => sceneUrl('texture', scene, { id, level, as: 'png' });
 /** Raw R, G, B, A bytes, rows top first. */
 export const textureRgbaUrl = (scene: string, id: number, level: number) => sceneUrl('texture', scene, { id, level, as: 'rgba' });
+
+export const listMaterials = (scene: string) => getJson<MaterialSummaryDTO[]>(sceneUrl('materials', scene));
+export const getMaterial = (scene: string, slot: number, signal?: AbortSignal) =>
+  getJson<MaterialDetailDTO>(sceneUrl('material', scene, { slot }), signal);
 
 export const getSkeleton = (scene: string, root: number) => getJson<SkeletonDTO>(sceneUrl('skeleton', scene, { root }));
 
